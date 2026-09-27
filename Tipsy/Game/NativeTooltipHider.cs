@@ -11,7 +11,8 @@ namespace Tipsy.Game;
 /// Makes one tooltip addon transparent while Tipsy draws it. The addon is never hidden outright, because a hidden
 /// addon stops drawing and the reader reads it at PreDraw. Unit alpha and the root node's alpha go to 0 when a
 /// content update is requested, before the game works out what to draw, and again at every PreDraw. When the
-/// snapshot no longer matches the map, the native tooltip is left visible instead.
+/// snapshot no longer matches the map, the native tooltip is left visible instead. Only addons Tipsy can draw get a
+/// hider, so turning replacement on never leaves a tooltip with nothing on screen.
 /// </summary>
 internal sealed unsafe class NativeTooltipHider : IDisposable
 {

@@ -24,17 +24,23 @@ public sealed unsafe partial class TooltipOverlay : Window
 {
     private const string WidestValue = "+9999";
     private const string FlagSeparator = "   ";
+    private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
+    private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
 
     private readonly TooltipReader reader;
     private readonly IGameGui gameGui;
     private readonly ITextureProvider textures;
     private readonly TooltipFonts fonts;
     private readonly ItemIcons itemIcons;
+    private readonly Configuration configuration;
     private readonly LayoutTokens baseTokens = new();
-    private readonly ThemeColors theme = ThemeColors.Native;
-    private readonly AnchorPreset anchor = AnchorPreset.TopRight;
 
     private LayoutTokens tokens = new();
+    private ThemeColors theme = ThemeColors.Minimal;
+    private bool placing;
+    private bool placingStarted;
+    private bool showingSample;
+    private IReadOnlyList<TooltipBlock> shown = [];
     private TooltipSnapshot? laidOut;
     private List<TooltipBlock> blocks = [];
     private float lastContentHeight;
@@ -42,9 +48,10 @@ public sealed unsafe partial class TooltipOverlay : Window
     private int pushedStyles;
     private int pushedColors;
 
-    internal TooltipOverlay(TooltipReader reader, IGameGui gameGui, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons)
-        : base("Tipsy tooltip##overlay", ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize)
+    internal TooltipOverlay(TooltipReader reader, IGameGui gameGui, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons, Configuration configuration)
+        : base("Tipsy tooltip##overlay", LiveFlags)
     {
+        this.configuration = configuration;
         this.reader = reader;
         this.gameGui = gameGui;
         this.textures = textures;
@@ -55,30 +62,82 @@ public sealed unsafe partial class TooltipOverlay : Window
         DisableWindowSounds = true;
     }
 
+    /// <summary>While true the window shows even without a tooltip, takes input, and saves where it is dragged to.</summary>
+    public bool Placing
+    {
+        get => placing;
+        set
+        {
+            placing = value;
+            placingStarted = value;
+            Flags = value ? PlacingFlags : LiveFlags;
+        }
+    }
+
+    /// <summary>
+    /// The settings window's rectangle while it asks for the sample tooltip, or null. The sample is drawn beside that
+    /// rectangle rather than at the tooltip's own position, and only while no real tooltip is showing.
+    /// </summary>
+    public (Vector2 Min, Vector2 Max)? SampleBeside { get; set; }
+
     public override bool DrawConditions()
     {
         var unit = (AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address;
-        if (unit == null || !unit->IsVisible || reader.Current is not { } snapshot)
-            return false;
-        if (!ReferenceEquals(snapshot, laidOut))
+        var live = unit != null && unit->IsVisible && reader.Current is not null;
+        if (live && !ReferenceEquals(reader.Current, laidOut))
         {
-            laidOut = snapshot;
-            blocks = ItemTooltipLayout.Build(snapshot);
+            laidOut = reader.Current;
+            blocks = ItemTooltipLayout.Build(reader.Current!);
         }
 
-        return blocks.Count > 0;
+        showingSample = false;
+        if (placing)
+        {
+            shown = blocks.Count > 0 ? blocks : SampleTooltip.Blocks;
+            return true;
+        }
+
+        if (configuration.ReplaceTooltips && live && blocks.Count > 0)
+        {
+            shown = blocks;
+            return true;
+        }
+
+        if (SampleBeside is null)
+            return false;
+        showingSample = true;
+        shown = SampleTooltip.Blocks;
+        return true;
     }
 
     public override void PreDraw()
     {
-        tokens = baseTokens.Scaled(ImGuiHelpers.GlobalScale);
+        var scale = ImGuiHelpers.GlobalScale;
+        tokens = (baseTokens with { Width = configuration.Width }).Scaled(scale);
+        theme = configuration.Theme();
         var viewport = ImGui.GetMainViewport();
-        placement = Placement.Place(anchor, viewport.WorkPos, viewport.WorkPos + viewport.WorkSize, tokens.ViewportInset, tokens.Width, lastContentHeight, Vector2.Zero, ImGui.GetMousePos(), Vector2.Zero);
-        ImGui.SetNextWindowPos(placement.Position, ImGuiCond.Always, placement.Pivot);
+        var workMin = viewport.WorkPos;
+        var workMax = viewport.WorkPos + viewport.WorkSize;
+        if (showingSample && SampleBeside is var (settingsMin, settingsMax))
+        {
+            var right = new Vector2(settingsMax.X + tokens.SectionGap, settingsMin.Y);
+            var left = new Vector2(settingsMin.X - tokens.SectionGap - tokens.Width, settingsMin.Y);
+            var beside = right.X + tokens.Width <= workMax.X - tokens.ViewportInset ? right : left;
+            placement = Placement.Place(AnchorPreset.Custom, workMin, workMax, tokens.ViewportInset, tokens.Width, lastContentHeight, beside, Vector2.Zero, Vector2.Zero);
+        }
+        else
+        {
+            var anchor = placing ? AnchorPreset.Custom : configuration.Anchor;
+            placement = Placement.Place(anchor, workMin, workMax, tokens.ViewportInset, tokens.Width, lastContentHeight, configuration.CustomPosition, ImGui.GetMousePos(), configuration.CursorOffset * scale);
+        }
+
+        if (!placing || placingStarted)
+            ImGui.SetNextWindowPos(placement.Position, ImGuiCond.Always, placement.Pivot);
+        placingStarted = false;
         ImGui.SetNextWindowSizeConstraints(new Vector2(tokens.Width, 0), new Vector2(tokens.Width, placement.MaxHeight));
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(tokens.Padding));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, tokens.Rounding);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, theme.Rounding * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(tokens.InlineGap, 0));
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Vector2.Zero);
@@ -98,7 +157,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     public override void Draw()
     {
         TooltipBlock? previous = null;
-        foreach (var block in blocks)
+        foreach (var block in shown)
         {
             Gap(previous, block);
             DrawBlock(block);
@@ -106,6 +165,12 @@ public sealed unsafe partial class TooltipOverlay : Window
         }
 
         lastContentHeight = ImGui.GetCursorPosY() + tokens.Padding;
+        if (placing && ImGui.IsMouseReleased(ImGuiMouseButton.Left) && ImGui.GetWindowPos() != configuration.CustomPosition)
+        {
+            configuration.CustomPosition = ImGui.GetWindowPos();
+            configuration.Save();
+        }
+
         if (placement.Overflowing)
             DrawOverflowFade();
     }
