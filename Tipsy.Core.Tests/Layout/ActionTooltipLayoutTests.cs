@@ -1,4 +1,5 @@
 using Tipsy.Core.Layout;
+using Tipsy.Core.Text;
 using Tipsy.Core.Tooltips;
 using Xunit;
 
@@ -119,7 +120,7 @@ public class ActionTooltipLayoutTests
     [Fact]
     public void LinesOtherPluginsAddToTheTextTooltipAreKeptAsExtras()
     {
-        var text = TextSnapshot("Rampart [`]") with { Extras = [new ExtraLine("9", System.Text.Encoding.UTF8.GetBytes("Added by a plugin"), 0, 0)] };
+        var text = TextSnapshot("Rampart [`]") with { Extras = [new ExtraLine("9", SeText.Utf8("Added by a plugin"), 0, 0)] };
 
         var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
 
@@ -137,7 +138,7 @@ public class ActionTooltipLayoutTests
     }
 
     private static TooltipSnapshot TextSnapshot(string text) =>
-        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(System.Text.Encoding.UTF8.GetBytes(text), string.Empty, 0) }, []);
+        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(SeText.Utf8(text), string.Empty, 0) }, []);
 
     private static TooltipSnapshot Snapshot(string fixture) => SnapshotBuilder.Build(ActionDetailMap.Map, Fixture.Load(fixture));
 

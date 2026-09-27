@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
-using System.Text;
 using System.Text.RegularExpressions;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Keys;
@@ -320,7 +319,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             foreach (var line in header.Lines)
                 SeString(line, textWidth, theme.SecondaryText);
             if (header.Flags.Count > 0)
-                SeString(Encoding.UTF8.GetBytes(string.Join(FlagSeparator, header.Flags.Select(flag => SeStringText.Plain(flag)))), textWidth, theme.SecondaryText);
+                SeString(SeText.Utf8(string.Join(FlagSeparator, header.Flags.Select(flag => SeStringText.Plain(flag)))), textWidth, theme.SecondaryText);
         }
 
         ImGui.EndGroup();
@@ -515,7 +514,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         return ellipsis;
     }
 
-    private static void SeString(byte[] text, float wrapWidth, uint colour)
+    private static void SeString(SeText text, float wrapWidth, uint colour)
     {
         ImGuiHelpers.SeStringWrapped(text, new SeStringDrawParams { WrapWidth = wrapWidth, Color = ImGui.GetColorU32(Colour(colour)) });
     }

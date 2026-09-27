@@ -38,7 +38,7 @@ public class TextTooltipLayoutTests
     {
         var paragraph = Assert.IsType<ParagraphBlock>(Assert.Single(Layout("text-coloured")));
 
-        Assert.Equal(0x02, paragraph.Text[0]);
+        Assert.Equal(0x02, paragraph.Text.Bytes[0]);
         Assert.StartsWith("Skill/Spell Speed shortens", Fixture.Plain(paragraph.Text));
     }
 

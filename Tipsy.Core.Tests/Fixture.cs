@@ -14,5 +14,5 @@ internal static class Fixture
         return NodeDump.Read(reader);
     }
 
-    public static string Plain(byte[] bytes) => SeStringText.Plain(bytes);
+    public static string Plain(SeText text) => SeStringText.Plain(text);
 }

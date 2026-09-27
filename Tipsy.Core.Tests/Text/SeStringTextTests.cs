@@ -31,8 +31,8 @@ public class SeStringTextTests
         var bytes = Convert.FromHexString("024804F2022903" + "4F66" + "0210010346" + "4F6620" + "02100103" + "46" + "02490201030248020103");
 
         Assert.Equal(
-            Convert.FromHexString("024804F2022903" + "4F66" + "2046" + "4F6620" + "46" + "02490201030248020103"),
-            SeStringText.SingleLine(bytes));
+            new SeText(Convert.FromHexString("024804F2022903" + "4F66" + "2046" + "4F6620" + "46" + "02490201030248020103")),
+            SeStringText.SingleLine(new SeText(bytes)));
     }
 
     [Theory]

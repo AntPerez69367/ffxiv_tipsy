@@ -1,4 +1,3 @@
-using System.Text;
 using Tipsy.Core.Text;
 using Tipsy.Core.Tooltips;
 
@@ -18,12 +17,12 @@ public static class ActionTooltipLayout
         if (!slots.TryGetValue(ActionDetailMap.Name, out var name))
             return [];
 
-        var lines = new List<byte[]>();
+        var lines = new List<SeText>();
         if (slots.TryGetValue(ActionDetailMap.Category, out var category))
             lines.Add(category.Text);
         var reach = string.Join(Separator, new[] { Pair(slots, ActionDetailMap.RangeLabel, ActionDetailMap.RangeValue), Pair(slots, ActionDetailMap.RadiusLabel, ActionDetailMap.RadiusValue) }.Where(part => part.Length > 0));
         if (reach.Length > 0)
-            lines.Add(Encoding.UTF8.GetBytes(reach));
+            lines.Add(SeText.Utf8(reach));
 
         var blocks = new List<TooltipBlock>
         {
@@ -31,7 +30,7 @@ public static class ActionTooltipLayout
                 slots.GetValueOrDefault(ActionDetailMap.Icon)?.Texture,
                 SharedLayout.Plain(slots, ActionDetailMap.IconCooldown).Trim(),
                 SeStringText.SingleLine(name.Text),
-                lines,
+                [.. lines],
                 []),
             new DividerBlock(),
         };
@@ -41,7 +40,7 @@ public static class ActionTooltipLayout
             .Select(i => new ParamValue(SharedLayout.Plain(slots, ActionDetailMap.ParamLabel(i)), SharedLayout.Plain(slots, ActionDetailMap.ParamValue(i)), string.Empty))
             .ToList();
         if (parameters.Count > 0)
-            blocks.Add(new ParamsBlock(parameters));
+            blocks.Add(new ParamsBlock([.. parameters]));
 
         if (slots.TryGetValue(ActionDetailMap.Description, out var description) && description.Text.Length > 0)
             blocks.Add(new ParagraphBlock(description.Text, false));
@@ -61,4 +60,5 @@ public static class ActionTooltipLayout
         if (slots.ContainsKey(label) && slots.TryGetValue(value, out var shown))
             blocks.Add(new KeyValueBlock(SharedLayout.Plain(slots, label), shown.Text));
     }
+
 }
