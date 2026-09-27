@@ -65,6 +65,7 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
             return;
         var unit = (AtkUnitBase*)address;
         SetAlpha(unit, Opaque);
+        selector.Update();
         if (selector.Draws(reader.Addon))
             SetAlpha(unit, 0);
     }

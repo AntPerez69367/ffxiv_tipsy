@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Game.ClientState.Keys;
-using Dalamud.Plugin;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Tipsy.Core.Layout;
@@ -41,9 +40,9 @@ public sealed class Configuration : IPluginConfiguration
     public Dictionary<ThemeToken, float> NumberOverrides { get; set; } = [];
 
     /// <summary>The saved settings, with values that no longer exist or fall outside their range put back to defaults.</summary>
-    public static Configuration Load(IDalamudPluginInterface pluginInterface)
+    public static Configuration Load()
     {
-        var configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        var configuration = Plugin.PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         var defaults = new Configuration();
         var tokens = new LayoutTokens();
         if (!Enum.IsDefined(configuration.Anchor))

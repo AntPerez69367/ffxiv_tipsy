@@ -1,3 +1,5 @@
+using Tipsy.Core.Nodes;
+
 namespace Tipsy.Core.Tooltips;
 
 /// <summary>The ItemDetail addon's known nodes, taken from the probe dumps of 2026-09-27.</summary>
@@ -148,7 +150,7 @@ public static class ItemDetailMap
         return bindings;
     }
 
-    private static SlotBinding Text(string slot, string path) => new(slot, path, "Text");
+    private static SlotBinding Text(string slot, string path) => new(slot, path, NodeRecord.TextType);
 
-    private static SlotBinding Image(string slot, string path) => new(slot, path, "Image");
+    private static SlotBinding Image(string slot, string path) => new(slot, path, NodeRecord.ImageType);
 }

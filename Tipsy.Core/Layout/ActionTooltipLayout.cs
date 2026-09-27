@@ -29,7 +29,7 @@ public static class ActionTooltipLayout
         {
             new HeaderBlock(
                 slots.GetValueOrDefault(ActionDetailMap.Icon)?.Texture,
-                slots.ContainsKey(ActionDetailMap.IconCooldown) ? Plain(slots, ActionDetailMap.IconCooldown).Trim() : string.Empty,
+                SharedLayout.Plain(slots, ActionDetailMap.IconCooldown).Trim(),
                 SeStringText.SingleLine(name.Text),
                 lines,
                 []),
@@ -38,7 +38,7 @@ public static class ActionTooltipLayout
 
         var parameters = Enumerable.Range(0, ActionDetailMap.ParamCount)
             .Where(i => slots.ContainsKey(ActionDetailMap.ParamLabel(i)) && slots.ContainsKey(ActionDetailMap.ParamValue(i)))
-            .Select(i => new ParamValue(Plain(slots, ActionDetailMap.ParamLabel(i)), Plain(slots, ActionDetailMap.ParamValue(i)), string.Empty))
+            .Select(i => new ParamValue(SharedLayout.Plain(slots, ActionDetailMap.ParamLabel(i)), SharedLayout.Plain(slots, ActionDetailMap.ParamValue(i)), string.Empty))
             .ToList();
         if (parameters.Count > 0)
             blocks.Add(new ParamsBlock(parameters));
@@ -54,13 +54,11 @@ public static class ActionTooltipLayout
     }
 
     private static string Pair(IReadOnlyDictionary<string, SlotValue> slots, string label, string value) =>
-        slots.ContainsKey(label) && slots.ContainsKey(value) ? $"{Plain(slots, label).Trim()} {Plain(slots, value).Trim()}" : string.Empty;
+        slots.ContainsKey(label) && slots.ContainsKey(value) ? $"{SharedLayout.Plain(slots, label).Trim()} {SharedLayout.Plain(slots, value).Trim()}" : string.Empty;
 
     private static void KeyValue(List<TooltipBlock> blocks, IReadOnlyDictionary<string, SlotValue> slots, string label, string value)
     {
         if (slots.ContainsKey(label) && slots.TryGetValue(value, out var shown))
-            blocks.Add(new KeyValueBlock(Plain(slots, label), shown.Text));
+            blocks.Add(new KeyValueBlock(SharedLayout.Plain(slots, label), shown.Text));
     }
-
-    private static string Plain(IReadOnlyDictionary<string, SlotValue> slots, string slot) => SeStringText.Plain(slots[slot].Text);
 }

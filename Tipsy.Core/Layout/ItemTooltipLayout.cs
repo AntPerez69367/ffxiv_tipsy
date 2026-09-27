@@ -20,7 +20,7 @@ public static class ItemTooltipLayout
 
         blocks.Add(new HeaderBlock(
             slots.GetValueOrDefault(ItemDetailMap.Icon)?.Texture,
-            slots.ContainsKey(ItemDetailMap.IconCooldown) ? Plain(slots, ItemDetailMap.IconCooldown).Trim() : string.Empty,
+            SharedLayout.Plain(slots, ItemDetailMap.IconCooldown).Trim(),
             SeStringText.SingleLine(name.Text),
             Texts(slots, ItemDetailMap.Category, ItemDetailMap.ItemLevel, ItemDetailMap.Level, ItemDetailMap.Classes),
             Texts(slots, ItemDetailMap.Unique, ItemDetailMap.Untradable, ItemDetailMap.Binding, ItemDetailMap.Owned)));
@@ -29,9 +29,9 @@ public static class ItemTooltipLayout
         var parameters = Enumerable.Range(0, ItemDetailMap.ParamCount)
             .Where(i => slots.ContainsKey(ItemDetailMap.ParamLabel(i)) && slots.ContainsKey(ItemDetailMap.ParamValue(i)))
             .Select(i => new ParamValue(
-                Plain(slots, ItemDetailMap.ParamLabel(i)),
-                Plain(slots, ItemDetailMap.ParamValue(i)),
-                slots.ContainsKey(ItemDetailMap.ParamDelta(i)) ? Plain(slots, ItemDetailMap.ParamDelta(i)).Trim() : string.Empty))
+                SharedLayout.Plain(slots, ItemDetailMap.ParamLabel(i)),
+                SharedLayout.Plain(slots, ItemDetailMap.ParamValue(i)),
+                SharedLayout.Plain(slots, ItemDetailMap.ParamDelta(i)).Trim()))
             .ToList();
         if (parameters.Count > 0)
             blocks.Add(new ParamsBlock(parameters));
@@ -45,7 +45,7 @@ public static class ItemTooltipLayout
         var stats = Enumerable.Range(0, ItemDetailMap.BonusRows)
             .SelectMany(row => new[] { ItemDetailMap.BonusLeft(row), ItemDetailMap.BonusRight(row) })
             .Where(slots.ContainsKey)
-            .Select(slot => SplitStat(Plain(slots, slot)))
+            .Select(slot => SplitStat(SharedLayout.Plain(slots, slot)))
             .ToList();
         if (stats.Count > 0)
         {
@@ -56,8 +56,8 @@ public static class ItemTooltipLayout
         var materia = Enumerable.Range(0, ItemDetailMap.MateriaSlots)
             .Where(slot => slots.ContainsKey(ItemDetailMap.MateriaSocket(slot)))
             .Select(slot => new LabelledValue(
-                slots.ContainsKey(ItemDetailMap.MateriaName(slot)) ? Plain(slots, ItemDetailMap.MateriaName(slot)) : string.Empty,
-                slots.ContainsKey(ItemDetailMap.MateriaEffect(slot)) ? Plain(slots, ItemDetailMap.MateriaEffect(slot)).Trim() : string.Empty))
+                SharedLayout.Plain(slots, ItemDetailMap.MateriaName(slot)),
+                SharedLayout.Plain(slots, ItemDetailMap.MateriaEffect(slot)).Trim()))
             .ToList();
         if (materia.Count > 0)
         {
@@ -73,10 +73,11 @@ public static class ItemTooltipLayout
                 var (label, value) = ItemDetailMap.RepairRows[row];
                 if (!slots.ContainsKey(label) || !slots.TryGetValue(value, out var shown))
                     continue;
-                if (row < 2 && Percent(Plain(slots, value)) is { } fraction)
-                    blocks.Add(new BarBlock(Plain(slots, label), Plain(slots, value), fraction));
+                var plainValue = SeStringText.Plain(shown.Text);
+                if (row < 2 && Percent(plainValue) is { } fraction)
+                    blocks.Add(new BarBlock(SharedLayout.Plain(slots, label), plainValue, fraction));
                 else
-                    blocks.Add(new KeyValueBlock(Plain(slots, label), shown.Text));
+                    blocks.Add(new KeyValueBlock(SharedLayout.Plain(slots, label), shown.Text));
             }
 
             Paragraph(blocks, slots, ItemDetailMap.RepairsFlags, true);
@@ -88,7 +89,7 @@ public static class ItemTooltipLayout
             foreach (var (label, value) in ItemDetailMap.RequirementRows)
             {
                 if (slots.ContainsKey(label) && slots.TryGetValue(value, out var shown))
-                    blocks.Add(new KeyValueBlock(Plain(slots, label), shown.Text));
+                    blocks.Add(new KeyValueBlock(SharedLayout.Plain(slots, label), shown.Text));
             }
         }
 
@@ -122,7 +123,7 @@ public static class ItemTooltipLayout
     public static float? Percent(string value)
     {
         var trimmed = value.Trim().TrimEnd('%', '\uFF05').Trim().Replace(',', '.');
-        if (!value.Contains('%') && !value.Contains('\uFF05') || !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        if ((!value.Contains('%') && !value.Contains('\uFF05')) || !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
             return null;
         return Math.Clamp(percent / 100f, 0f, 1f);
     }
@@ -130,20 +131,22 @@ public static class ItemTooltipLayout
     private static void Caption(List<TooltipBlock> blocks, IReadOnlyDictionary<string, SlotValue> slots, string slot)
     {
         if (slots.ContainsKey(slot))
-            blocks.Add(new CaptionBlock(Plain(slots, slot).ToUpperInvariant()));
+            blocks.Add(new CaptionBlock(SharedLayout.Plain(slots, slot).ToUpperInvariant()));
     }
 
     private static void Paragraph(List<TooltipBlock> blocks, IReadOnlyDictionary<string, SlotValue> slots, string slot, bool secondary)
     {
-        if (slots.TryGetValue(slot, out var value) && value.Text.Length > 0 && Plain(slots, slot).Trim().Length > 0)
+        if (slots.TryGetValue(slot, out var value) && HasText(value))
             blocks.Add(new ParagraphBlock(value.Text, secondary));
     }
 
     private static List<byte[]> Texts(IReadOnlyDictionary<string, SlotValue> slots, params string[] wanted) =>
         wanted
-            .Where(slot => slots.TryGetValue(slot, out var value) && value.Text.Length > 0 && Plain(slots, slot).Trim().Length > 0)
-            .Select(slot => slots[slot].Text)
+            .Select(slots.GetValueOrDefault)
+            .OfType<SlotValue>()
+            .Where(HasText)
+            .Select(value => value.Text)
             .ToList();
 
-    private static string Plain(IReadOnlyDictionary<string, SlotValue> slots, string slot) => SeStringText.Plain(slots[slot].Text);
+    private static bool HasText(SlotValue value) => !string.IsNullOrWhiteSpace(SeStringText.Plain(value.Text));
 }

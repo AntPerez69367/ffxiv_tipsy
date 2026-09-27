@@ -1,3 +1,5 @@
+using Tipsy.Core.Nodes;
+
 namespace Tipsy.Core.Tooltips;
 
 /// <summary>The ActionDetail addon's known nodes, taken from the probe dumps of 2026-09-27.</summary>
@@ -33,7 +35,7 @@ public static class ActionDetailMap
     {
         List<SlotBinding> bindings =
         [
-            new(Icon, "4/20", "Image"),
+            new(Icon, "4/20", NodeRecord.ImageType),
             Text(IconCooldown, "3"),
             Text(Name, "5"),
             Text(Category, "6"),
@@ -57,5 +59,5 @@ public static class ActionDetailMap
         return bindings;
     }
 
-    private static SlotBinding Text(string slot, string path) => new(slot, path, "Text");
+    private static SlotBinding Text(string slot, string path) => new(slot, path, NodeRecord.TextType);
 }
