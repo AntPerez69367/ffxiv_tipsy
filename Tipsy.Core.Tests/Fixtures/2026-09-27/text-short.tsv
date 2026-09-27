@@ -1,0 +1,6 @@
+game 2026.09.15.0000.0000	Tooltip text	hide Off
+addon scale 1 at 2628,232 alpha 255 rootColorA 255
+depth	id	type	parent	visible	shown	x	y	screenX	screenY	width	height	scaleX	scaleY	partId	texture	textHex	text
+0	1	Res	0	1	1	2628	232	2628	232	52	24	2	2	0			
+0	3	NineGrid	1	1	1	0	0	2628	232	52	24	1	1	0			
+0	2	Text	1	1	1	8	0	2644	232	26	24	1	1	0		426F6479	Body

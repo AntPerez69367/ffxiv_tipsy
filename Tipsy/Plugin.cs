@@ -5,6 +5,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Tipsy.Core.Layout;
 using Tipsy.Core.Tooltips;
 using Tipsy.Game;
 using Tipsy.Windows;
@@ -40,7 +41,7 @@ public sealed class Plugin : IDalamudPlugin
         var directory = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "probe");
         var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
         configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        readers = [new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map)];
+        readers = [new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map), new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map)];
         hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, configuration.ReplaceTooltips))];
         probes =
         [
@@ -51,7 +52,12 @@ public sealed class Plugin : IDalamudPlugin
         ];
         discovery = new AddonDiscovery(directory);
         fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
-        overlay = new TooltipOverlay(readers[0], GameGui, TextureProvider, fonts, new ItemIcons(DataManager), configuration);
+        TooltipSource[] sources =
+        [
+            new(readers[0], ItemTooltipLayout.Build, false),
+            new(readers[1], TextTooltipLayout.Build, true),
+        ];
+        overlay = new TooltipOverlay(sources, GameGui, TextureProvider, fonts, new ItemIcons(DataManager), configuration);
         configWindow = new ConfigWindow(configuration, overlay, SetReplaceTooltips);
         probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
         windowSystem.AddWindow(overlay);

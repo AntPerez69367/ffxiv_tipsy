@@ -7,18 +7,12 @@ namespace Tipsy.Core.Layout;
 /// <summary>Arranges an ItemDetail snapshot into blocks: header, stats, materia, repairs, description, sale info, extras.</summary>
 public static class ItemTooltipLayout
 {
-    public const string ExtrasCaption = "EXTRAS";
-    public const string MismatchWarning = "Tipsy's map for this tooltip is out of date, so it is shown as plain text.";
-
     public static List<TooltipBlock> Build(TooltipSnapshot snapshot)
     {
-        var blocks = new List<TooltipBlock>();
         if (snapshot.Status == SnapshotStatus.SchemaMismatch)
-        {
-            blocks.Add(new WarningBlock(MismatchWarning));
-            blocks.AddRange(snapshot.Extras.Select(extra => new ParagraphBlock(extra.Text, false)));
-            return blocks;
-        }
+            return SharedLayout.Fallback(snapshot);
+
+        var blocks = new List<TooltipBlock>();
 
         var slots = snapshot.Slots;
         if (!slots.TryGetValue(ItemDetailMap.Name, out var name))
@@ -103,13 +97,7 @@ public static class ItemTooltipLayout
         Paragraph(blocks, slots, ItemDetailMap.SellsFor, true);
         Paragraph(blocks, slots, ItemDetailMap.ShopPrice, true);
 
-        if (snapshot.Extras.Count > 0)
-        {
-            blocks.Add(new DividerBlock());
-            blocks.Add(new CaptionBlock(ExtrasCaption));
-            blocks.AddRange(snapshot.Extras.Select(extra => new ParagraphBlock(extra.Text, false)));
-        }
-
+        SharedLayout.AppendExtras(blocks, snapshot);
         return blocks;
     }
 
