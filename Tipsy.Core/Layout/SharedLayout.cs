@@ -1,3 +1,4 @@
+using Tipsy.Core.Text;
 using Tipsy.Core.Tooltips;
 
 namespace Tipsy.Core.Layout;
@@ -13,6 +14,23 @@ public static class SharedLayout
         List<TooltipBlock> blocks = [new WarningBlock(MismatchWarning)];
         blocks.AddRange(snapshot.Extras.Select(extra => new ParagraphBlock(extra.Text, false)));
         return blocks;
+    }
+
+    /// <summary>
+    /// Folds the text tooltip the game opens next to a hotbar slot, "Interject [`]", into the header of the item or
+    /// action tooltip open with it: the key in brackets becomes the header's keybind. Blocks without a header, or text
+    /// without a bracketed key, come back unchanged.
+    /// </summary>
+    public static List<TooltipBlock> WithKeybind(List<TooltipBlock> blocks, TooltipSnapshot textTooltip)
+    {
+        if (blocks.Count == 0 || blocks[0] is not HeaderBlock header || !textTooltip.Slots.TryGetValue(TextTooltipMap.Text, out var text))
+            return blocks;
+        var plain = SeStringText.Plain(text.Text).Trim();
+        var open = plain.LastIndexOf('[');
+        if (!plain.EndsWith(']') || open < 0 || open == plain.Length - 2)
+            return blocks;
+
+        return [header with { Keybind = plain[(open + 1)..^1] }, .. blocks.Skip(1)];
     }
 
     public static void AppendExtras(List<TooltipBlock> blocks, TooltipSnapshot snapshot)

@@ -3,8 +3,14 @@ namespace Tipsy.Core.Layout;
 /// <summary>One piece of the tooltip window, top to bottom. SeString content stays as raw bytes so game colours survive.</summary>
 public abstract record TooltipBlock;
 
-/// <summary>The item header. <see cref="IconCooldown"/> is the remaining recast the game draws over the icon, or empty.</summary>
-public sealed record HeaderBlock(string? IconTexture, string IconCooldown, byte[] Name, IReadOnlyList<byte[]> Lines, IReadOnlyList<byte[]> Flags) : TooltipBlock;
+/// <summary>
+/// The header of an item or action. <see cref="IconCooldown"/> is the remaining recast the game draws over the icon,
+/// and <see cref="Keybind"/> the hotbar key shown by the text tooltip that opens alongside; either may be empty.
+/// </summary>
+public sealed record HeaderBlock(string? IconTexture, string IconCooldown, byte[] Name, IReadOnlyList<byte[]> Lines, IReadOnlyList<byte[]> Flags) : TooltipBlock
+{
+    public string Keybind { get; init; } = string.Empty;
+}
 
 public sealed record ParamsBlock(IReadOnlyList<ParamValue> Params) : TooltipBlock;
 
