@@ -12,6 +12,15 @@ namespace Tipsy;
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
+    [JsonProperty(nameof(ColourOverrides))]
+    private Dictionary<ThemeToken, uint> colourOverrides = [];
+
+    [JsonProperty(nameof(NumberOverrides))]
+    private Dictionary<ThemeToken, float> numberOverrides = [];
+
+    private ThemePreset preset = ThemePreset.Minimal;
+    private ThemeColors? theme;
+
     public int Version { get; set; } = 1;
 
     /// <summary>Whether Tipsy hides the game's tooltips and draws its own; when off, only the game's tooltips show.</summary>
@@ -33,11 +42,21 @@ public sealed class Configuration : IPluginConfiguration
     public float Width { get; set; } = new LayoutTokens().Width;
 
     [JsonConverter(typeof(StringEnumConverter))]
-    public ThemePreset Preset { get; set; } = ThemePreset.Minimal;
+    public ThemePreset Preset
+    {
+        get => preset;
+        set
+        {
+            preset = value;
+            theme = null;
+        }
+    }
 
-    public Dictionary<ThemeToken, uint> ColourOverrides { get; set; } = [];
+    [JsonIgnore]
+    public IReadOnlyDictionary<ThemeToken, uint> ColourOverrides => colourOverrides;
 
-    public Dictionary<ThemeToken, float> NumberOverrides { get; set; } = [];
+    [JsonIgnore]
+    public IReadOnlyDictionary<ThemeToken, float> NumberOverrides => numberOverrides;
 
     /// <summary>The saved settings, with values that no longer exist or fall outside their range put back to defaults.</summary>
     public static Configuration Load()
@@ -55,7 +74,33 @@ public sealed class Configuration : IPluginConfiguration
         return configuration;
     }
 
-    public ThemeColors Theme() => ThemeColors.Of(Preset).With(ColourOverrides, NumberOverrides);
+    public ThemeColors Theme() => theme ??= ThemeColors.Of(Preset).With(colourOverrides, numberOverrides);
+
+    public void SetColour(ThemeToken token, uint colour)
+    {
+        colourOverrides[token] = colour;
+        theme = null;
+    }
+
+    public void SetNumber(ThemeToken token, float number)
+    {
+        numberOverrides[token] = number;
+        theme = null;
+    }
+
+    public void ResetToken(ThemeToken token)
+    {
+        colourOverrides.Remove(token);
+        numberOverrides.Remove(token);
+        theme = null;
+    }
+
+    public void ClearOverrides()
+    {
+        colourOverrides.Clear();
+        numberOverrides.Clear();
+        theme = null;
+    }
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 }

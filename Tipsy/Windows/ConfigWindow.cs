@@ -239,7 +239,10 @@ public sealed class ConfigWindow : Window
 
         ImGui.BeginDisabled(modified == 0);
         if (ImGui.Button("Reset customizations"))
-            ClearOverrides();
+        {
+            configuration.ClearOverrides();
+            configuration.Save();
+        }
         ImGui.EndDisabled();
 
         var theme = configuration.Theme();
@@ -290,16 +293,9 @@ public sealed class ConfigWindow : Window
     {
         configuration.Preset = preset;
         if (discardChanges)
-            ClearOverrides();
+            configuration.ClearOverrides();
         configuration.Save();
         pendingPreset = null;
-    }
-
-    private void ClearOverrides()
-    {
-        configuration.ColourOverrides.Clear();
-        configuration.NumberOverrides.Clear();
-        configuration.Save();
     }
 
     private static void DrawContrastWarning(ThemeColors theme)
@@ -322,19 +318,19 @@ public sealed class ConfigWindow : Window
         {
             var colour = Rgb.ToVector3(theme.ColourOf(token));
             if (ImGui.ColorEdit3("##value", ref colour, ImGuiColorEditFlags.DisplayHex))
-                configuration.ColourOverrides[token] = Rgb.FromVector3(colour);
+                configuration.SetColour(token, Rgb.FromVector3(colour));
         }
         else if (token == ThemeToken.Rounding)
         {
             var rounding = theme.NumberOf(token);
             if (ImGui.SliderFloat("##value", ref rounding, 0, MaxRounding, "%.0f px"))
-                configuration.NumberOverrides[token] = rounding;
+                configuration.SetNumber(token, rounding);
         }
         else
         {
             var percent = theme.NumberOf(token) * 100;
             if (ImGui.SliderFloat("##value", ref percent, 0, 100, "%.0f%%"))
-                configuration.NumberOverrides[token] = percent / 100;
+                configuration.SetNumber(token, percent / 100);
         }
 
         SaveAfterEdit();
@@ -343,8 +339,7 @@ public sealed class ConfigWindow : Window
         ImGui.BeginDisabled(!overridden);
         if (ImGui.Button("Reset"))
         {
-            configuration.ColourOverrides.Remove(token);
-            configuration.NumberOverrides.Remove(token);
+            configuration.ResetToken(token);
             configuration.Save();
         }
 

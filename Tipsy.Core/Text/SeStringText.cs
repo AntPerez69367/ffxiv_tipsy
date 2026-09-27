@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 
 namespace Tipsy.Core.Text;
@@ -15,13 +16,14 @@ public static class SeStringText
 
     public static string Plain(ReadOnlySpan<byte> bytes)
     {
-        var text = new List<byte>(bytes.Length);
+        var text = ArrayPool<byte>.Shared.Rent(bytes.Length);
+        var count = 0;
         var i = 0;
         while (i < bytes.Length)
         {
             if (bytes[i] != PayloadStart)
             {
-                text.Add(bytes[i++]);
+                text[count++] = bytes[i++];
                 continue;
             }
 
@@ -31,7 +33,9 @@ public static class SeStringText
             i += (int)length + 1;
         }
 
-        return Encoding.UTF8.GetString(text.ToArray());
+        var plain = Encoding.UTF8.GetString(text, 0, count);
+        ArrayPool<byte>.Shared.Return(text);
+        return plain;
     }
 
     /// <summary>

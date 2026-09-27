@@ -23,15 +23,15 @@ public sealed class ProbeWindow : Window
     private readonly IReadOnlyList<TooltipProbe> probes;
     private readonly IReadOnlyList<TooltipReader> readers;
     private readonly AddonDiscovery discovery;
-    private readonly TooltipOverlay overlay;
+    private readonly TooltipBlockRenderer renderer;
     private readonly IDataManager data;
     private TooltipProbe probe;
     private List<string>? clippedLabels;
     private float clippedAtScale;
 
-    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, IReadOnlyList<TooltipReader> readers, AddonDiscovery discovery, TooltipOverlay overlay, IDataManager data) : base("Tipsy probe##probe")
+    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, IReadOnlyList<TooltipReader> readers, AddonDiscovery discovery, TooltipBlockRenderer renderer, IDataManager data) : base("Tipsy probe##probe")
     {
-        this.overlay = overlay;
+        this.renderer = renderer;
         this.data = data;
         this.probes = probes;
         this.readers = readers;
@@ -147,7 +147,7 @@ public sealed class ProbeWindow : Window
         if (ImGui.Button($"Check every stat name at {width:F0} px"))
         {
             var names = data.GetExcelSheet<BaseParam>().Select(param => param.Name.ExtractText()).Where(name => name.Length > 0).Distinct();
-            clippedLabels = overlay.ClippedStatLabels(names, width);
+            clippedLabels = renderer.ClippedStatLabels(names, width);
             clippedAtScale = ImGuiHelpers.GlobalScale;
         }
 
