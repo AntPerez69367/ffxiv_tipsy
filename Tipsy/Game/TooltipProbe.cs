@@ -6,6 +6,7 @@ using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using Tipsy.Core.Nodes;
 
 namespace Tipsy.Game;
 
@@ -33,7 +34,7 @@ internal sealed class LeakCounters
 }
 
 /// <summary>A visible text node of the current tooltip.</summary>
-internal readonly record struct ProbeText(uint NodeId, string Text);
+internal readonly record struct ProbeText(string Path, string Text);
 
 /// <summary>
 /// Dumps a tooltip addon's node tree to a file on the first draw after each content change while enabled,
@@ -43,7 +44,6 @@ internal readonly record struct ProbeText(uint NodeId, string Text);
 /// </summary>
 internal sealed unsafe class TooltipProbe : IDisposable
 {
-    private const int ComponentNodeType = 1000;
     private const int OpenFrames = 3;
     private const int TraceFrames = 10;
 
@@ -185,8 +185,17 @@ internal sealed unsafe class TooltipProbe : IDisposable
     public List<ProbeText> VisibleText()
     {
         var texts = new List<ProbeText>();
-        if (TryGetUnit(out var unit) && unit->IsVisible)
-            CollectText(&unit->UldManager, texts);
+        if (!TryGetUnit(out var unit) || !unit->IsVisible)
+            return texts;
+        foreach (var node in NodeWalker.Collect(unit))
+        {
+            if (node.Type != NodeRecord.TextType || !node.Shown || node.Text.Length == 0)
+                continue;
+            var text = SeString.Parse(node.Text).TextValue;
+            if (text.Length > 0)
+                texts.Add(new ProbeText(node.Path, text.ReplaceLineEndings("\\n")));
+        }
+
         return texts;
     }
 
@@ -256,7 +265,7 @@ internal sealed unsafe class TooltipProbe : IDisposable
     private void Dump(AtkUnitBase* unit)
     {
         var rows = new StringWriter();
-        DumpManager(&unit->UldManager, 0, rows);
+        NodeDump.WriteRows(NodeWalker.Collect(unit), bytes => SeString.Parse(bytes).TextValue, rows);
         var text = rows.ToString();
         if (text == lastRows)
         {
@@ -270,7 +279,7 @@ internal sealed unsafe class TooltipProbe : IDisposable
         using var output = new StreamWriter(path);
         output.WriteLine($"game {gameVersion}\t{AddonName} {target}\thide {Hide}");
         output.WriteLine($"addon scale {unit->GetScale()} at {unit->GetX()},{unit->GetY()} alpha {PreDrawUnitAlpha} rootColorA {PreDrawRootAlpha}");
-        output.WriteLine("depth\tid\ttype\tparent\tvisible\tshown\tx\ty\tscreenX\tscreenY\twidth\theight\tscaleX\tscaleY\tpartId\ttexture\ttextHex\ttext");
+        output.WriteLine(NodeDump.ColumnHeader);
         output.Write(text);
         DumpsWritten++;
         LastDumpPath = path;
@@ -284,91 +293,5 @@ internal sealed unsafe class TooltipProbe : IDisposable
         output.WriteLine("method\topens\tframes\tleaked\tleakedAtOpen\tnoPreDraw");
         foreach (var (method, counter) in counters)
             output.WriteLine($"{method}\t{counter.Opens}\t{counter.Frames}\t{counter.Leaked}\t{counter.LeakedAtOpen}\t{counter.MissedPreDraw}");
-    }
-
-    private static void DumpManager(AtkUldManager* manager, int depth, TextWriter output)
-    {
-        for (var i = 0; i < manager->NodeListCount; i++)
-        {
-            var node = manager->NodeList[i];
-            if (node == null)
-                continue;
-            var parent = node->ParentNode;
-            var isComponent = (int)node->Type >= ComponentNodeType;
-            var partId = 0;
-            var texture = string.Empty;
-            var textHex = string.Empty;
-            var text = string.Empty;
-            switch (node->Type)
-            {
-                case NodeType.Image:
-                    var image = node->GetAsAtkImageNode();
-                    partId = image->PartId;
-                    texture = TexturePath(image);
-                    break;
-                case NodeType.Text:
-                    var bytes = node->GetAsAtkTextNode()->NodeText.AsSpan();
-                    textHex = Convert.ToHexString(bytes);
-                    text = Escape(SeString.Parse(bytes).TextValue);
-                    break;
-            }
-
-            var visible = (node->NodeFlags & NodeFlags.Visible) != 0 ? 1 : 0;
-            var shown = IsShown(node) ? 1 : 0;
-            var type = isComponent ? $"Component{(int)node->Type}" : node->Type.ToString();
-            output.WriteLine($"{depth}\t{node->NodeId}\t{type}\t{(parent == null ? 0 : parent->NodeId)}\t{visible}\t{shown}\t{node->X}\t{node->Y}\t{node->ScreenX}\t{node->ScreenY}\t{node->Width}\t{node->Height}\t{node->ScaleX}\t{node->ScaleY}\t{partId}\t{texture}\t{textHex}\t{text}");
-            if (isComponent && node->GetAsAtkComponentNode()->Component != null)
-                DumpManager(&node->GetAsAtkComponentNode()->Component->UldManager, depth + 1, output);
-        }
-    }
-
-    private static void CollectText(AtkUldManager* manager, List<ProbeText> texts)
-    {
-        for (var i = 0; i < manager->NodeListCount; i++)
-        {
-            var node = manager->NodeList[i];
-            if (node == null || !IsShown(node))
-                continue;
-            if ((int)node->Type >= ComponentNodeType)
-            {
-                var component = node->GetAsAtkComponentNode()->Component;
-                if (component != null)
-                    CollectText(&component->UldManager, texts);
-                continue;
-            }
-
-            if (node->Type != NodeType.Text)
-                continue;
-            var text = SeString.Parse(node->GetAsAtkTextNode()->NodeText.AsSpan()).TextValue;
-            if (text.Length > 0)
-                texts.Add(new ProbeText(node->NodeId, Escape(text)));
-        }
-    }
-
-    private static string Escape(string text) => text.ReplaceLineEndings("\\n").Replace("\t", "\\t");
-
-    private static bool IsShown(AtkResNode* node)
-    {
-        for (var current = node; current != null; current = current->ParentNode)
-        {
-            if ((current->NodeFlags & NodeFlags.Visible) == 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    private static string TexturePath(AtkImageNode* image)
-    {
-        var parts = image->PartsList;
-        if (parts == null || image->PartId >= parts->PartCount)
-            return string.Empty;
-        var asset = parts->Parts[image->PartId].UldAsset;
-        if (asset == null)
-            return string.Empty;
-        var texture = &asset->AtkTexture;
-        if (texture->TextureType != TextureType.Resource || texture->Resource == null || texture->Resource->TexFileResourceHandle == null)
-            return string.Empty;
-        return texture->Resource->TexFileResourceHandle->FileName.ToString();
     }
 }
