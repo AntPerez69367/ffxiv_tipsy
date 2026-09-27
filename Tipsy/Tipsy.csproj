@@ -2,7 +2,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <Version>1.0.0.0</Version>
-    <Author>Anthony Perez</Author>
+    <Author>Elserie</Author>
     <Name>Tipsy</Name>
     <Punchline>Themeable replacements for the game's tooltips.</Punchline>
     <Description>Tipsy replaces the game's item, action and text tooltips with one themeable window. Pin it to a corner, a spot of your own or your cursor, pick a theme or your own colours, and keep the lines other plugins add.</Description>
