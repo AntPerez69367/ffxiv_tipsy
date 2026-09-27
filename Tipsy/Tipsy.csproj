@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.0.0.1</Version>
+    <Author>Anthony Perez</Author>
+    <Name>Tipsy</Name>
+    <Punchline>A styled, anchored replacement for the item tooltip.</Punchline>
+    <Description>Tipsy replaces the item tooltip with a themeable window pinned to a screen position you choose.</Description>
+    <RepoUrl>https://github.com/AntPerez69367/ffxiv_tipsy</RepoUrl>
+    <Tags>tooltip;ui;items</Tags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Tipsy.Core\Tipsy.Core.csproj" />
+  </ItemGroup>
+</Project>
