@@ -23,7 +23,7 @@ public static class SampleTooltip
         new ParagraphBlock(Utf8("A sample item, shown until you hover a real one."), false),
         new ParagraphBlock(Utf8("Sells for 1,329 gil"), true),
         new DividerBlock(),
-        new CaptionBlock(ItemTooltipLayout.ExtrasCaption),
+        new CaptionBlock(SharedLayout.ExtrasCaption),
         new ParagraphBlock(Utf8("Lines other plugins add appear here."), false),
     ];
 

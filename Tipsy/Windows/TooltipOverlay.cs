@@ -27,7 +27,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
     private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
 
-    private readonly TooltipReader reader;
+    private readonly IReadOnlyList<TooltipSource> sources;
     private readonly IGameGui gameGui;
     private readonly ITextureProvider textures;
     private readonly TooltipFonts fonts;
@@ -40,6 +40,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     private bool placing;
     private bool placingStarted;
     private bool showingSample;
+    private bool fitting;
     private IReadOnlyList<TooltipBlock> shown = [];
     private TooltipSnapshot? laidOut;
     private List<TooltipBlock> blocks = [];
@@ -48,11 +49,11 @@ public sealed unsafe partial class TooltipOverlay : Window
     private int pushedStyles;
     private int pushedColors;
 
-    internal TooltipOverlay(TooltipReader reader, IGameGui gameGui, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons, Configuration configuration)
+    internal TooltipOverlay(IReadOnlyList<TooltipSource> sources, IGameGui gameGui, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons, Configuration configuration)
         : base("Tipsy tooltip##overlay", LiveFlags)
     {
         this.configuration = configuration;
-        this.reader = reader;
+        this.sources = sources;
         this.gameGui = gameGui;
         this.textures = textures;
         this.fonts = fonts;
@@ -82,15 +83,16 @@ public sealed unsafe partial class TooltipOverlay : Window
 
     public override bool DrawConditions()
     {
-        var unit = (AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address;
-        var live = unit != null && unit->IsVisible && reader.Current is not null;
-        if (live && !ReferenceEquals(reader.Current, laidOut))
+        var source = OpenSource();
+        var live = source is not null;
+        if (source is not null && !ReferenceEquals(source.Reader.Current, laidOut))
         {
-            laidOut = reader.Current;
-            blocks = ItemTooltipLayout.Build(reader.Current!);
+            laidOut = source.Reader.Current;
+            blocks = source.Layout(source.Reader.Current!);
         }
 
         showingSample = false;
+        fitting = false;
         if (placing)
         {
             shown = blocks.Count > 0 ? blocks : SampleTooltip.Blocks;
@@ -100,6 +102,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         if (configuration.ReplaceTooltips && live && blocks.Count > 0)
         {
             shown = blocks;
+            fitting = source!.FitToContent;
             return true;
         }
 
@@ -113,7 +116,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     public override void PreDraw()
     {
         var scale = ImGuiHelpers.GlobalScale;
-        tokens = (baseTokens with { Width = configuration.Width }).Scaled(scale);
+        tokens = (baseTokens with { Width = fitting ? FittedWidth(scale) : configuration.Width }).Scaled(scale);
         theme = configuration.Theme();
         var viewport = ImGui.GetMainViewport();
         var workMin = viewport.WorkPos;
@@ -173,6 +176,40 @@ public sealed unsafe partial class TooltipOverlay : Window
 
         if (placement.Overflowing)
             DrawOverflowFade();
+    }
+
+    private TooltipSource? OpenSource()
+    {
+        foreach (var source in sources)
+        {
+            var unit = (AtkUnitBase*)gameGui.GetAddonByName(source.Reader.Addon).Address;
+            if (unit != null && unit->IsVisible && source.Reader.Current is not null)
+                return source;
+        }
+
+        return null;
+    }
+
+    private float FittedWidth(float scale)
+    {
+        var widest = 0f;
+        using (fonts.Body.Push())
+        {
+            foreach (var block in shown)
+            {
+                var text = block switch
+                {
+                    ParagraphBlock paragraph => SeStringText.Plain(paragraph.Text),
+                    WarningBlock warning => warning.Text,
+                    CaptionBlock caption => caption.Text,
+                    _ => string.Empty,
+                };
+                foreach (var line in text.Split('\n'))
+                    widest = Math.Max(widest, ImGui.CalcTextSize(line).X);
+            }
+        }
+
+        return Math.Min(configuration.Width, MathF.Ceiling(widest / scale) + (2 * baseTokens.Padding) + 1);
     }
 
     /// <summary>The stat labels that would be clipped in the stat table at <paramref name="width"/> unscaled pixels.</summary>

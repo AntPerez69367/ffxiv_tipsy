@@ -103,7 +103,8 @@ public sealed class ProbeWindow : Window
         if (readers.FirstOrDefault(reader => reader.Addon == probe.AddonName) is { } reader)
         {
             DrawSnapshot(reader);
-            DrawStatLabelCheck();
+            if (reader.Addon == ItemDetailMap.Addon)
+                DrawStatLabelCheck();
             ImGui.Separator();
         }
 

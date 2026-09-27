@@ -50,7 +50,7 @@ public class ItemTooltipLayoutTests
 
         Assert.Contains(blocks, block => block is CaptionBlock { Text: "EFFECTS" });
         Assert.IsType<DividerBlock>(blocks[^3]);
-        Assert.Equal(ItemTooltipLayout.ExtrasCaption, Assert.IsType<CaptionBlock>(blocks[^2]).Text);
+        Assert.Equal(SharedLayout.ExtrasCaption, Assert.IsType<CaptionBlock>(blocks[^2]).Text);
         Assert.StartsWith("Marketboard Price:", Fixture.Plain(Assert.IsType<ParagraphBlock>(blocks[^1]).Text));
         Assert.Equal(2, blocks.OfType<DividerBlock>().Count());
     }
@@ -62,7 +62,7 @@ public class ItemTooltipLayoutTests
 
         var parameters = blocks.OfType<ParamsBlock>().Single().Params;
         Assert.Equal([new ParamValue("Defense", "478", "(-705)"), new ParamValue("Magic Defense", "837", "(-346)")], parameters);
-        Assert.DoesNotContain(blocks, block => block is CaptionBlock { Text: ItemTooltipLayout.ExtrasCaption });
+        Assert.DoesNotContain(blocks, block => block is CaptionBlock { Text: SharedLayout.ExtrasCaption });
     }
 
     [Fact]
