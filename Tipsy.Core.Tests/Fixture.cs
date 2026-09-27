@@ -1,5 +1,5 @@
-using System.Text;
 using Tipsy.Core.Nodes;
+using Tipsy.Core.Text;
 
 namespace Tipsy.Core.Tests;
 
@@ -14,21 +14,5 @@ internal static class Fixture
         return NodeDump.Read(reader);
     }
 
-    public static string Plain(byte[] bytes)
-    {
-        var text = new List<byte>(bytes.Length);
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] != 0x02)
-            {
-                text.Add(bytes[i]);
-                continue;
-            }
-
-            var length = bytes[i + 2] - 1;
-            i += 3 + length;
-        }
-
-        return Encoding.UTF8.GetString(text.ToArray());
-    }
+    public static string Plain(byte[] bytes) => SeStringText.Plain(bytes);
 }

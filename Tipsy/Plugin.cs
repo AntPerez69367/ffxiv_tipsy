@@ -18,6 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
+    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
 
     private const string CommandName = "/tipsy";
 
@@ -25,6 +26,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TooltipReader[] readers;
     private readonly TooltipProbe[] probes;
     private readonly AddonDiscovery discovery;
+    private readonly TooltipFonts fonts;
+    private readonly TooltipOverlay overlay;
     private readonly ProbeWindow probeWindow;
 
     public Plugin()
@@ -40,7 +43,10 @@ public sealed class Plugin : IDalamudPlugin
             new TooltipProbe("Tooltip", () => "text", AddonLifecycle, GameGui, Log, directory, gameVersion),
         ];
         discovery = new AddonDiscovery(directory);
-        probeWindow = new ProbeWindow(probes, readers, discovery);
+        fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
+        overlay = new TooltipOverlay(readers[0], GameGui, TextureProvider, fonts, new ItemIcons(DataManager));
+        probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
+        windowSystem.AddWindow(overlay);
         windowSystem.AddWindow(probeWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -60,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
             probe.Dispose();
         foreach (var reader in readers)
             reader.Dispose();
+        fonts.Dispose();
     }
 
     private void OnDraw()

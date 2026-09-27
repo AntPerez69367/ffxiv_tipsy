@@ -4,7 +4,11 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
+using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
+using Tipsy.Core.Layout;
 using Tipsy.Core.Tooltips;
 using Tipsy.Game;
 
@@ -17,10 +21,16 @@ public sealed class ProbeWindow : Window
     private readonly IReadOnlyList<TooltipProbe> probes;
     private readonly IReadOnlyList<TooltipReader> readers;
     private readonly AddonDiscovery discovery;
+    private readonly TooltipOverlay overlay;
+    private readonly IDataManager data;
     private TooltipProbe probe;
+    private List<string>? clippedLabels;
+    private float clippedAtScale;
 
-    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, IReadOnlyList<TooltipReader> readers, AddonDiscovery discovery) : base("Tipsy probe##probe")
+    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, IReadOnlyList<TooltipReader> readers, AddonDiscovery discovery, TooltipOverlay overlay, IDataManager data) : base("Tipsy probe##probe")
     {
+        this.overlay = overlay;
+        this.data = data;
         this.probes = probes;
         this.readers = readers;
         this.discovery = discovery;
@@ -93,6 +103,7 @@ public sealed class ProbeWindow : Window
         if (readers.FirstOrDefault(reader => reader.Addon == probe.AddonName) is { } reader)
         {
             DrawSnapshot(reader);
+            DrawStatLabelCheck();
             ImGui.Separator();
         }
 
@@ -123,6 +134,25 @@ public sealed class ProbeWindow : Window
         foreach (var extra in snapshot.Extras)
             Row($"extra {extra.Path}", Plain(extra.Text));
         ImGui.EndTable();
+    }
+
+    private void DrawStatLabelCheck()
+    {
+        if (!ImGui.CollapsingHeader("Stat label check"))
+            return;
+        var width = new LayoutTokens().MinWidth;
+        if (ImGui.Button($"Check every stat name at {width:F0} px"))
+        {
+            var names = data.GetExcelSheet<BaseParam>().Select(param => param.Name.ExtractText()).Where(name => name.Length > 0).Distinct();
+            clippedLabels = overlay.ClippedStatLabels(names, width);
+            clippedAtScale = ImGuiHelpers.GlobalScale;
+        }
+
+        if (clippedLabels is null)
+            return;
+        ImGui.TextUnformatted($"At UI scale {clippedAtScale:P0}: {clippedLabels.Count} names would be clipped");
+        foreach (var label in clippedLabels)
+            ImGui.BulletText(label);
     }
 
     private static void Row(string label, string content)
