@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Tipsy/Tipsy.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="Tipsy.Core/Tipsy.Core.csproj" />
+  <Project Path="Tipsy.Core.Tests/Tipsy.Core.Tests.csproj" />
+</Solution>
