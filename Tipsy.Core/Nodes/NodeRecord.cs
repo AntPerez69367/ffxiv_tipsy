@@ -5,7 +5,7 @@ namespace Tipsy.Core.Nodes;
 /// component nodes and the node's own id with '/', so "32/12" is node 12 inside component node 32, because
 /// node ids repeat between components. <see cref="Type"/> is the game's node type name, with component nodes
 /// written as "Component" plus their numeric type. <see cref="Shown"/> is true when the node and every
-/// ancestor are visible.
+/// ancestor below the addon's root node are visible; whether the addon itself is open is the addon's own flag.
 /// </summary>
 public sealed record NodeRecord(
     int Depth,

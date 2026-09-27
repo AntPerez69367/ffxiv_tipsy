@@ -104,7 +104,7 @@ public class ItemTooltipLayoutTests
     }
 
     [Fact]
-    public void ClosedTooltipLaysOutNothing()
+    public void TreeWithNothingShownLaysOutNothing()
     {
         Assert.Empty(Layout("closed-baklava"));
     }

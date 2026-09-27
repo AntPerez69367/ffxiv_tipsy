@@ -81,7 +81,7 @@ public class ItemDetailReplayTests
     }
 
     [Fact]
-    public void HiddenTooltipHasNoSlotsOrExtras()
+    public void TreeWithNothingShownHasNoSlotsOrExtras()
     {
         var snapshot = Build("closed-baklava");
 
