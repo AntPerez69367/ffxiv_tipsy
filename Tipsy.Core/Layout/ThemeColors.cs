@@ -134,7 +134,7 @@ public sealed record ThemeColors(
     /// white and over black, since a translucent surface can sit on any part of the game.
     /// </summary>
     public double SecondaryContrast() =>
-        Math.Min(Ratio(SecondaryText, Composite(Surface, SurfaceAlpha, 0xFFFFFF)), Ratio(SecondaryText, Composite(Surface, SurfaceAlpha, 0x000000)));
+        Math.Min(Ratio(SecondaryText, Rgb.Composite(Surface, SurfaceAlpha, 0xFFFFFF)), Ratio(SecondaryText, Rgb.Composite(Surface, SurfaceAlpha, 0x000000)));
 
     private static double Ratio(uint foreground, uint background)
     {
@@ -143,20 +143,11 @@ public sealed record ThemeColors(
         return (Math.Max(text, back) + 0.05) / (Math.Min(text, back) + 0.05);
     }
 
-    private static uint Composite(uint colour, float alpha, uint backdrop)
-    {
-        uint Channel(int shift) => (uint)Math.Round((((colour >> shift) & 0xFF) * alpha) + (((backdrop >> shift) & 0xFF) * (1 - alpha)));
-        return (Channel(16) << 16) | (Channel(8) << 8) | Channel(0);
-    }
-
     private static double Luminance(uint colour)
     {
-        static double Linear(uint channel)
-        {
-            var value = channel / 255.0;
-            return value <= 0.03928 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
-        }
+        static double Linear(double value) => value <= 0.03928 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
 
-        return (0.2126 * Linear((colour >> 16) & 0xFF)) + (0.7152 * Linear((colour >> 8) & 0xFF)) + (0.0722 * Linear(colour & 0xFF));
+        var channels = Rgb.ToVector3(colour);
+        return (0.2126 * Linear(channels.X)) + (0.7152 * Linear(channels.Y)) + (0.0722 * Linear(channels.Z));
     }
 }
