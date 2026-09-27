@@ -4,6 +4,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Tipsy.Core.Tooltips;
 using Tipsy.Game;
 using Tipsy.Windows;
 
@@ -21,6 +22,7 @@ public sealed class Plugin : IDalamudPlugin
     private const string CommandName = "/tipsy";
 
     private readonly WindowSystem windowSystem = new("Tipsy");
+    private readonly TooltipReader[] readers;
     private readonly TooltipProbe[] probes;
     private readonly AddonDiscovery discovery;
     private readonly ProbeWindow probeWindow;
@@ -29,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         var directory = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "probe");
         var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
+        readers = [new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map)];
         probes =
         [
             new TooltipProbe("ItemDetail", () => GameGui.HoveredItem.ToString(), AddonLifecycle, GameGui, Log, directory, gameVersion),
@@ -37,7 +40,7 @@ public sealed class Plugin : IDalamudPlugin
             new TooltipProbe("Tooltip", () => "text", AddonLifecycle, GameGui, Log, directory, gameVersion),
         ];
         discovery = new AddonDiscovery(directory);
-        probeWindow = new ProbeWindow(probes, discovery);
+        probeWindow = new ProbeWindow(probes, readers, discovery);
         windowSystem.AddWindow(probeWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
@@ -55,6 +58,8 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(CommandName);
         foreach (var probe in probes)
             probe.Dispose();
+        foreach (var reader in readers)
+            reader.Dispose();
     }
 
     private void OnDraw()

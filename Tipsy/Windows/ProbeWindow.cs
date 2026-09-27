@@ -3,7 +3,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Windowing;
+using Tipsy.Core.Tooltips;
 using Tipsy.Game;
 
 namespace Tipsy.Windows;
@@ -13,12 +15,14 @@ public sealed class ProbeWindow : Window
     private const int DiscoveryRows = 15;
 
     private readonly IReadOnlyList<TooltipProbe> probes;
+    private readonly IReadOnlyList<TooltipReader> readers;
     private readonly AddonDiscovery discovery;
     private TooltipProbe probe;
 
-    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, AddonDiscovery discovery) : base("Tipsy probe##probe")
+    internal ProbeWindow(IReadOnlyList<TooltipProbe> probes, IReadOnlyList<TooltipReader> readers, AddonDiscovery discovery) : base("Tipsy probe##probe")
     {
         this.probes = probes;
+        this.readers = readers;
         this.discovery = discovery;
         probe = probes[0];
         SizeConstraints = new WindowSizeConstraints
@@ -86,8 +90,50 @@ public sealed class ProbeWindow : Window
         ImGui.Separator();
         DrawHide();
         ImGui.Separator();
+        if (readers.FirstOrDefault(reader => reader.Addon == probe.AddonName) is { } reader)
+        {
+            DrawSnapshot(reader);
+            ImGui.Separator();
+        }
+
         DrawLiveText();
     }
+
+    private static void DrawSnapshot(TooltipReader reader)
+    {
+        if (!ImGui.CollapsingHeader("Reader snapshot"))
+            return;
+        if (reader.Current is not { } snapshot)
+        {
+            ImGui.TextUnformatted("No snapshot yet.");
+            return;
+        }
+
+        ImGui.TextUnformatted($"{snapshot.Status}, {snapshot.Slots.Count} slots, {snapshot.Extras.Count} extras, {reader.Rebuilds} rebuilds");
+        if (snapshot.Mismatch is { } mismatch)
+            ImGui.TextWrapped($"Mismatch: {mismatch}");
+
+        if (!ImGui.BeginTable("snapshot", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg))
+            return;
+        ImGui.TableSetupColumn("Slot", ImGuiTableColumnFlags.WidthFixed, 220);
+        ImGui.TableSetupColumn("Content");
+        ImGui.TableHeadersRow();
+        foreach (var (slot, value) in snapshot.Slots)
+            Row(slot, value.Text.Length > 0 ? Plain(value.Text) : $"{value.Texture} part {value.PartId}");
+        foreach (var extra in snapshot.Extras)
+            Row($"extra {extra.Path}", Plain(extra.Text));
+        ImGui.EndTable();
+    }
+
+    private static void Row(string label, string content)
+    {
+        ImGui.TableNextRow();
+        Cell(label);
+        ImGui.TableNextColumn();
+        ImGui.TextWrapped(content);
+    }
+
+    private static string Plain(byte[] text) => SeString.Parse(text).TextValue;
 
     private void DrawDumps()
     {
@@ -156,13 +202,13 @@ public sealed class ProbeWindow : Window
 
         if (!ImGui.BeginTable("text", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY))
             return;
-        ImGui.TableSetupColumn("Node", ImGuiTableColumnFlags.WidthFixed, 60);
+        ImGui.TableSetupColumn("Node", ImGuiTableColumnFlags.WidthFixed, 80);
         ImGui.TableSetupColumn("Text");
         ImGui.TableHeadersRow();
         foreach (var text in texts)
         {
             ImGui.TableNextRow();
-            Cell(text.NodeId.ToString());
+            Cell(text.Path);
             ImGui.TableNextColumn();
             ImGui.TextWrapped(text.Text);
         }
