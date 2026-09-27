@@ -21,7 +21,7 @@ public static class ItemTooltipLayout
         blocks.Add(new HeaderBlock(
             slots.GetValueOrDefault(ItemDetailMap.Icon)?.Texture,
             slots.ContainsKey(ItemDetailMap.IconCooldown) ? Plain(slots, ItemDetailMap.IconCooldown).Trim() : string.Empty,
-            name.Text,
+            SeStringText.SingleLine(name.Text),
             Texts(slots, ItemDetailMap.Category, ItemDetailMap.ItemLevel, ItemDetailMap.Level, ItemDetailMap.Classes),
             Texts(slots, ItemDetailMap.Unique, ItemDetailMap.Untradable, ItemDetailMap.Binding, ItemDetailMap.Owned)));
         blocks.Add(new DividerBlock());
@@ -101,22 +101,28 @@ public static class ItemTooltipLayout
         return blocks;
     }
 
-    /// <summary>Splits "Vitality +410" into its name and signed amount; text without a trailing amount stays whole.</summary>
+    /// <summary>
+    /// Splits "Vitality +410" into its name and signed amount, on any kind of space and with full-width signs and digits
+    /// as some clients write them; text without a trailing amount stays whole.
+    /// </summary>
     public static LabelledValue SplitStat(string stat)
     {
-        var space = stat.LastIndexOf(' ');
-        if (space <= 0 || space == stat.Length - 1)
+        var trimmed = stat.TrimEnd();
+        var space = trimmed.Length - 1;
+        while (space > 0 && !char.IsWhiteSpace(trimmed[space]))
+            space--;
+        if (space <= 0)
             return new LabelledValue(stat, string.Empty);
-        var amount = stat[(space + 1)..];
-        return amount[0] is '+' or '-' || char.IsDigit(amount[0])
-            ? new LabelledValue(stat[..space], amount)
+        var amount = trimmed[(space + 1)..];
+        return amount[0] is '+' or '-' or '\uFF0B' or '\u2212' or '\uFF0D' || char.IsDigit(amount[0])
+            ? new LabelledValue(trimmed[..space].TrimEnd(), amount)
             : new LabelledValue(stat, string.Empty);
     }
 
-    private static float? Percent(string value)
+    public static float? Percent(string value)
     {
-        var trimmed = value.TrimEnd('%');
-        if (trimmed.Length == value.Length || !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
+        var trimmed = value.Trim().TrimEnd('%', '\uFF05').Trim().Replace(',', '.');
+        if (!value.Contains('%') && !value.Contains('\uFF05') || !float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent))
             return null;
         return Math.Clamp(percent / 100f, 0f, 1f);
     }

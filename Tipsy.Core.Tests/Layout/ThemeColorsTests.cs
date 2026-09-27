@@ -14,11 +14,20 @@ public class ThemeColorsTests
         Assert.True(ThemeColors.Of(preset).SecondaryContrast() >= ThemeColors.MinimumContrast, $"{preset}: {ThemeColors.Of(preset).SecondaryContrast():F2}");
     }
 
-    [Theory]
-    [MemberData(nameof(Presets))]
-    public void EveryPresetHasItsOwnColours(ThemePreset preset)
+    [Fact]
+    public void NoTwoPresetsAreTheSame()
     {
-        Assert.True(preset == ThemePreset.Native || ThemeColors.Of(preset) != ThemeColors.Native);
+        var presets = Enum.GetValues<ThemePreset>().Select(ThemeColors.Of).ToList();
+
+        Assert.Equal(presets.Count, presets.Distinct().Count());
+    }
+
+    [Fact]
+    public void LightTranslucentSurfaceIsJudgedAgainstADarkBackdropToo()
+    {
+        var theme = ThemeColors.Native with { Surface = 0xFFFFFF, SurfaceAlpha = 0.5f, SecondaryText = 0x777777 };
+
+        Assert.True(theme.SecondaryContrast() < ThemeColors.MinimumContrast);
     }
 
     [Fact]

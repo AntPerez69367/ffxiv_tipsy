@@ -44,15 +44,23 @@ public class ItemTooltipLayoutTests
     }
 
     [Fact]
-    public void FoodShowsEffectsAndEndsWithTheInjectedLineUnderExtras()
+    public void FoodShowsEffectsAndEndsWithTheInjectedLineAsAnExtra()
     {
         var blocks = Layout("food-baklava");
 
         Assert.Contains(blocks, block => block is CaptionBlock { Text: "EFFECTS" });
-        Assert.IsType<DividerBlock>(blocks[^3]);
-        Assert.Equal(SharedLayout.ExtrasCaption, Assert.IsType<CaptionBlock>(blocks[^2]).Text);
-        Assert.StartsWith("Marketboard Price:", Fixture.Plain(Assert.IsType<ParagraphBlock>(blocks[^1]).Text));
+        Assert.IsType<DividerBlock>(blocks[^2]);
+        Assert.StartsWith("Marketboard Price:", Fixture.Plain(Assert.IsType<ExtraBlock>(blocks[^1]).Text));
         Assert.Equal(2, blocks.OfType<DividerBlock>().Count());
+    }
+
+    [Fact]
+    public void TheGamesLineBreakInALongNameIsDropped()
+    {
+        var header = Assert.IsType<HeaderBlock>(Layout("gear-melded")[0]);
+
+        Assert.Equal(-1, header.Name.AsSpan().IndexOf([(byte)0x02, (byte)0x10, (byte)0x01, (byte)0x03]));
+        Assert.Equal("Augmented Lunar Envoy's Gloves of Fending", Fixture.Plain(header.Name));
     }
 
     [Fact]
@@ -62,7 +70,7 @@ public class ItemTooltipLayoutTests
 
         var parameters = blocks.OfType<ParamsBlock>().Single().Params;
         Assert.Equal([new ParamValue("Defense", "478", "(-705)"), new ParamValue("Magic Defense", "837", "(-346)")], parameters);
-        Assert.DoesNotContain(blocks, block => block is CaptionBlock { Text: SharedLayout.ExtrasCaption });
+        Assert.DoesNotContain(blocks, block => block is ExtraBlock);
     }
 
     [Fact]
@@ -128,9 +136,51 @@ public class ItemTooltipLayoutTests
     [InlineData("Movement Speed -5", "Movement Speed", "-5")]
     [InlineData("Unique", "Unique", "")]
     [InlineData("Grants Resistance", "Grants Resistance", "")]
+    [InlineData("Vitality \uFF0B410", "Vitality", "\uFF0B410")]
+    [InlineData("Vitalit\u00E9\u00A0+410", "Vitalit\u00E9", "+410")]
+    [InlineData("Vitality +410 ", "Vitality", "+410")]
     public void StatsSplitIntoNameAndAmount(string stat, string label, string value)
     {
         Assert.Equal(new LabelledValue(label, value), ItemTooltipLayout.SplitStat(stat));
+    }
+
+    [Theory]
+    [InlineData("gear-grimoire")]
+    [InlineData("gear-wristguards")]
+    [InlineData("gear-compared")]
+    [InlineData("gear-melded")]
+    [InlineData("food-baklava")]
+    [InlineData("card-chimera")]
+    [InlineData("hq-max-potion")]
+    [InlineData("hq-max-potion-cooldown")]
+    [InlineData("hq-gear-binding")]
+    [InlineData("requirements")]
+    public void RecordedItemsMatchTheMapWithOnlyPluginLinesInExtras(string fixture)
+    {
+        var snapshot = SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load(fixture));
+
+        Assert.Equal(SnapshotStatus.Ok, snapshot.Status);
+        Assert.All(snapshot.Extras, extra => Assert.Equal("32612", extra.Path));
+    }
+
+    [Theory]
+    [InlineData("100%", 1f)]
+    [InlineData("42%", 0.42f)]
+    [InlineData("99,5%", 0.995f)]
+    [InlineData("99.5 %", 0.995f)]
+    [InlineData("150%", 1f)]
+    [InlineData("0%", 0f)]
+    public void PercentagesParseInEveryClientFormat(string value, float fraction)
+    {
+        Assert.Equal(fraction, ItemTooltipLayout.Percent(value)!.Value, 3);
+    }
+
+    [Theory]
+    [InlineData("Grade 8 Dark Matter")]
+    [InlineData("100")]
+    public void TextWithoutAPercentSignIsNotABar(string value)
+    {
+        Assert.Null(ItemTooltipLayout.Percent(value));
     }
 
     private static List<TooltipBlock> Layout(string fixture) => ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load(fixture)));

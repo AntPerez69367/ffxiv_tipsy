@@ -1,3 +1,4 @@
+#if TIPSY_PROBE
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -253,3 +254,4 @@ public sealed class ProbeWindow : Window
         ImGui.TextUnformatted(text);
     }
 }
+#endif

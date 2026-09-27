@@ -3,16 +3,15 @@ using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using Tipsy.Core.Tooltips;
 
 namespace Tipsy.Game;
 
 /// <summary>
-/// Makes one tooltip addon transparent while Tipsy draws it. The addon is never hidden outright, because a hidden
-/// addon stops drawing and the reader reads it at PreDraw. Unit alpha and the root node's alpha go to 0 when a
-/// content update is requested, before the game works out what to draw, and again at every PreDraw. When the
-/// snapshot no longer matches the map, the native tooltip is left visible instead. Only addons Tipsy can draw get a
-/// hider, so turning replacement on never leaves a tooltip with nothing on screen.
+/// Makes one tooltip addon transparent while Tipsy draws its content. The addon is never hidden outright, because a
+/// hidden addon stops drawing and the reader reads it at PreDraw. Alpha goes to 0 as soon as a content update is
+/// requested, before the game works out what to draw, so a new tooltip never flashes. Each time the reader has read
+/// the addon, the native tooltip is made opaque again and only hidden if the <see cref="TooltipSelector"/> says
+/// Tipsy draws it this frame.
 /// </summary>
 internal sealed unsafe class NativeTooltipHider : IDisposable
 {
@@ -21,17 +20,19 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
     private readonly IAddonLifecycle addonLifecycle;
     private readonly IGameGui gameGui;
     private readonly TooltipReader reader;
+    private readonly TooltipSelector selector;
     private bool enabled;
 
-    public NativeTooltipHider(IAddonLifecycle addonLifecycle, IGameGui gameGui, TooltipReader reader, bool enabled)
+    public NativeTooltipHider(IAddonLifecycle addonLifecycle, IGameGui gameGui, TooltipReader reader, TooltipSelector selector, bool enabled)
     {
         this.addonLifecycle = addonLifecycle;
         this.gameGui = gameGui;
         this.reader = reader;
+        this.selector = selector;
         this.enabled = enabled;
 
         addonLifecycle.RegisterListener(AddonEvent.PostRequestedUpdate, reader.Addon, OnRequestedUpdate);
-        addonLifecycle.RegisterListener(AddonEvent.PreDraw, reader.Addon, OnPreDraw);
+        reader.Drawing += OnDrawing;
     }
 
     public bool Enabled
@@ -41,15 +42,15 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
         {
             enabled = value;
             if (!value)
-                Restore();
+                SetAlpha((AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address, Opaque);
         }
     }
 
     public void Dispose()
     {
         addonLifecycle.UnregisterListener(AddonEvent.PostRequestedUpdate, reader.Addon, OnRequestedUpdate);
-        addonLifecycle.UnregisterListener(AddonEvent.PreDraw, reader.Addon, OnPreDraw);
-        Restore();
+        reader.Drawing -= OnDrawing;
+        SetAlpha((AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address, Opaque);
     }
 
     private void OnRequestedUpdate(AddonEvent type, AddonArgs args)
@@ -58,15 +59,15 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
             SetAlpha((AtkUnitBase*)args.Addon.Address, 0);
     }
 
-    private void OnPreDraw(AddonEvent type, AddonArgs args)
+    private void OnDrawing(nint address)
     {
         if (!enabled)
             return;
-        var matches = reader.Current?.Status != SnapshotStatus.SchemaMismatch;
-        SetAlpha((AtkUnitBase*)args.Addon.Address, matches ? (byte)0 : Opaque);
+        var unit = (AtkUnitBase*)address;
+        SetAlpha(unit, Opaque);
+        if (selector.Draws(reader.Addon))
+            SetAlpha(unit, 0);
     }
-
-    private void Restore() => SetAlpha((AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address, Opaque);
 
     private static void SetAlpha(AtkUnitBase* unit, byte alpha)
     {

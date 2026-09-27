@@ -26,6 +26,9 @@ public sealed record KeyValueBlock(string Key, byte[] Value) : TooltipBlock;
 
 public sealed record ParagraphBlock(byte[] Text, bool Secondary) : TooltipBlock;
 
+/// <summary>A line another plugin or the game added that Tipsy has no place for, shown in the last section.</summary>
+public sealed record ExtraBlock(byte[] Text) : TooltipBlock;
+
 public sealed record DividerBlock : TooltipBlock;
 
 public sealed record WarningBlock(string Text) : TooltipBlock;

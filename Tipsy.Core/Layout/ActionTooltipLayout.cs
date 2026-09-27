@@ -30,7 +30,7 @@ public static class ActionTooltipLayout
             new HeaderBlock(
                 slots.GetValueOrDefault(ActionDetailMap.Icon)?.Texture,
                 slots.ContainsKey(ActionDetailMap.IconCooldown) ? Plain(slots, ActionDetailMap.IconCooldown).Trim() : string.Empty,
-                name.Text,
+                SeStringText.SingleLine(name.Text),
                 lines,
                 []),
             new DividerBlock(),

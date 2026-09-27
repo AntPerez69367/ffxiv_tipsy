@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
@@ -27,8 +28,8 @@ public sealed unsafe partial class TooltipOverlay : Window
     private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
     private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
 
-    private readonly IReadOnlyList<TooltipSource> sources;
-    private readonly IGameGui gameGui;
+    private readonly TooltipSelector selector;
+    private readonly IKeyState keyState;
     private readonly ITextureProvider textures;
     private readonly TooltipFonts fonts;
     private readonly ItemIcons itemIcons;
@@ -39,23 +40,22 @@ public sealed unsafe partial class TooltipOverlay : Window
     private ThemeColors theme = ThemeColors.Minimal;
     private bool placing;
     private bool placingStarted;
+    private Vector2? placedAt;
     private bool showingSample;
     private bool fitting;
     private IReadOnlyList<TooltipBlock> shown = [];
-    private TooltipSnapshot? laidOut;
-    private TooltipSnapshot? laidOutText;
-    private List<TooltipBlock> blocks = [];
+    private IReadOnlyList<TooltipBlock> lastBlocks = [];
     private float lastContentHeight;
     private WindowPlacement placement;
     private int pushedStyles;
     private int pushedColors;
 
-    internal TooltipOverlay(IReadOnlyList<TooltipSource> sources, IGameGui gameGui, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons, Configuration configuration)
+    internal TooltipOverlay(TooltipSelector selector, IKeyState keyState, ITextureProvider textures, TooltipFonts fonts, ItemIcons itemIcons, Configuration configuration)
         : base("Tipsy tooltip##overlay", LiveFlags)
     {
         this.configuration = configuration;
-        this.sources = sources;
-        this.gameGui = gameGui;
+        this.selector = selector;
+        this.keyState = keyState;
         this.textures = textures;
         this.fonts = fonts;
         this.itemIcons = itemIcons;
@@ -64,12 +64,22 @@ public sealed unsafe partial class TooltipOverlay : Window
         DisableWindowSounds = true;
     }
 
-    /// <summary>While true the window shows even without a tooltip, takes input, and saves where it is dragged to.</summary>
+    /// <summary>
+    /// While true the window shows even without a tooltip, takes input, and saves where it is dragged to, both when the
+    /// drag ends and when placing ends.
+    /// </summary>
     public bool Placing
     {
         get => placing;
         set
         {
+            if (placing && !value && placedAt is { } position && position != configuration.CustomPosition)
+            {
+                configuration.CustomPosition = position;
+                configuration.Save();
+            }
+
+            placedAt = null;
             placing = value;
             placingStarted = value;
             Flags = value ? PlacingFlags : LiveFlags;
@@ -84,30 +94,22 @@ public sealed unsafe partial class TooltipOverlay : Window
 
     public override bool DrawConditions()
     {
-        var source = OpenSource();
-        var live = source is not null;
-        var text = source is not null && source.Reader.Addon != TextTooltipMap.Addon ? OpenText() : null;
-        if (source is not null && (!ReferenceEquals(source.Reader.Current, laidOut) || !ReferenceEquals(text, laidOutText)))
-        {
-            laidOut = source.Reader.Current;
-            laidOutText = text;
-            blocks = source.Layout(source.Reader.Current!);
-            if (text is not null)
-                blocks = SharedLayout.WithKeybind(blocks, text);
-        }
+        selector.Update();
+        if (selector.Blocks.Count > 0)
+            lastBlocks = selector.Blocks;
 
         showingSample = false;
         fitting = false;
         if (placing)
         {
-            shown = blocks.Count > 0 ? blocks : SampleTooltip.Blocks;
+            shown = lastBlocks.Count > 0 ? lastBlocks : SampleTooltip.Blocks;
             return true;
         }
 
-        if (configuration.ReplaceTooltips && live && blocks.Count > 0)
+        if (configuration.ReplaceTooltips && selector.Drawn is { } drawn && !HideKeyHeld())
         {
-            shown = blocks;
-            fitting = source!.FitToContent;
+            shown = selector.Blocks;
+            fitting = drawn.FitToContent;
             return true;
         }
 
@@ -164,6 +166,7 @@ public sealed unsafe partial class TooltipOverlay : Window
 
     public override void Draw()
     {
+        ImGuiP.BringWindowToDisplayFront(ImGuiP.GetCurrentWindow());
         TooltipBlock? previous = null;
         foreach (var block in shown)
         {
@@ -173,6 +176,8 @@ public sealed unsafe partial class TooltipOverlay : Window
         }
 
         lastContentHeight = ImGui.GetCursorPosY() + tokens.Padding;
+        if (placing)
+            placedAt = ImGui.GetWindowPos();
         if (placing && ImGui.IsMouseReleased(ImGuiMouseButton.Left) && ImGui.GetWindowPos() != configuration.CustomPosition)
         {
             configuration.CustomPosition = ImGui.GetWindowPos();
@@ -183,15 +188,10 @@ public sealed unsafe partial class TooltipOverlay : Window
             DrawOverflowFade();
     }
 
-    private TooltipSource? OpenSource() => sources.FirstOrDefault(IsShowing);
-
-    private TooltipSnapshot? OpenText() =>
-        sources.FirstOrDefault(source => source.Reader.Addon == TextTooltipMap.Addon && IsShowing(source))?.Reader.Current;
-
-    private bool IsShowing(TooltipSource source)
+    private bool HideKeyHeld()
     {
-        var unit = (AtkUnitBase*)gameGui.GetAddonByName(source.Reader.Addon).Address;
-        return unit != null && unit->IsVisible && source.Reader.Current is not null;
+        var key = configuration.HideKey;
+        return key != VirtualKey.NO_KEY && keyState.IsVirtualKeyValid(key) && keyState[key];
     }
 
     private float FittedWidth(float scale)
@@ -204,6 +204,7 @@ public sealed unsafe partial class TooltipOverlay : Window
                 var text = block switch
                 {
                     ParagraphBlock paragraph => SeStringText.Plain(paragraph.Text),
+                    ExtraBlock extra => SeStringText.Plain(extra.Text),
                     WarningBlock warning => warning.Text,
                     CaptionBlock caption => caption.Text,
                     _ => string.Empty,
@@ -216,6 +217,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         return Math.Min(configuration.Width, MathF.Ceiling(widest / scale) + (2 * baseTokens.Padding) + 1);
     }
 
+#if TIPSY_PROBE
     /// <summary>The stat labels that would be clipped in the stat table at <paramref name="width"/> unscaled pixels.</summary>
     public List<string> ClippedStatLabels(IEnumerable<string> labels, float width)
     {
@@ -226,6 +228,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             return labels.Where(label => ImGui.CalcTextSize(label).X > labelWidth).ToList();
         }
     }
+#endif
 
     private void Gap(TooltipBlock? previous, TooltipBlock block)
     {
@@ -238,6 +241,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             _ when previous is CaptionBlock => tokens.CaptionGap,
             CaptionBlock or ParamsBlock => tokens.SectionGap,
             ParagraphBlock when previous is not ParagraphBlock => tokens.SectionGap,
+            ExtraBlock when previous is not ExtraBlock => tokens.SectionGap,
             _ => tokens.RowGap,
         };
         if (gap > 0)
@@ -276,6 +280,10 @@ public sealed unsafe partial class TooltipOverlay : Window
             case ParagraphBlock paragraph:
                 using (paragraph.Secondary ? fonts.Small.Push() : fonts.Body.Push())
                     SeString(paragraph.Text, tokens.WrapWidth, paragraph.Secondary ? theme.SecondaryText : theme.PrimaryText);
+                break;
+            case ExtraBlock extra:
+                using (fonts.Body.Push())
+                    SeString(extra.Text, tokens.WrapWidth, theme.PrimaryText);
                 break;
             case WarningBlock warning:
                 using (fonts.Small.Push())

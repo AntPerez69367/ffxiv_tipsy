@@ -10,6 +10,8 @@ public class TextTooltipLayoutTests
     [InlineData("text-short")]
     [InlineData("text-defense")]
     [InlineData("text-coloured")]
+    [InlineData("text-keybind")]
+    [InlineData("text-no-keybind")]
     public void RecordedTextTooltipsMatchTheMap(string fixture)
     {
         Assert.Equal(SnapshotStatus.Ok, Snapshot(fixture).Status);

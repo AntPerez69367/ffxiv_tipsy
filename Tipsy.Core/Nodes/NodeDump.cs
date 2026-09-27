@@ -12,6 +12,7 @@ public static class NodeDump
     public const string ColumnHeader = "depth\tid\ttype\tparent\tvisible\tshown\tx\ty\tscreenX\tscreenY\twidth\theight\tscaleX\tscaleY\tpartId\ttexture\ttextHex\ttext";
 
     private const int HeaderLines = 3;
+    private const int Columns = 18;
     private const string ComponentPrefix = "Component";
 
     public static List<NodeRecord> Read(TextReader input)
@@ -21,12 +22,18 @@ public static class NodeDump
 
         var records = new List<NodeRecord>();
         var components = new List<uint>();
+        var lineNumber = HeaderLines;
         while (input.ReadLine() is { } line)
         {
+            lineNumber++;
             if (line.Length == 0)
                 continue;
             var cells = line.Split('\t');
+            if (cells.Length < Columns)
+                throw new FormatException($"Line {lineNumber} has {cells.Length} columns, expected {Columns}.");
             var depth = int.Parse(cells[0], CultureInfo.InvariantCulture);
+            if (depth < 0 || depth > components.Count)
+                throw new FormatException($"Line {lineNumber} is at depth {depth} with only {components.Count} components open.");
             var nodeId = uint.Parse(cells[1], CultureInfo.InvariantCulture);
             var type = cells[2];
             components.RemoveRange(depth, components.Count - depth);

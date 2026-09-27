@@ -37,6 +37,9 @@ internal sealed unsafe class TooltipReader : IDisposable
 
     public int Rebuilds { get; private set; }
 
+    /// <summary>Raised at the end of every PreDraw of the addon, after <see cref="Current"/> is up to date, with the addon's address.</summary>
+    public event Action<nint>? Drawing;
+
     public void Dispose()
     {
         addonLifecycle.UnregisterListener(AddonEvent.PostRequestedUpdate, map.Addon, OnRequestedUpdate);
@@ -52,12 +55,17 @@ internal sealed unsafe class TooltipReader : IDisposable
             return;
 
         var hash = NodeWalker.Hash(unit);
-        if (!dirty && hash == lastHash)
-            return;
+        if (dirty || hash != lastHash)
+            Rebuild(unit, hash);
+        Drawing?.Invoke(args.Addon.Address);
+    }
+
+    private void Rebuild(AtkUnitBase* unit, int hash)
+    {
+        Current = null;
+        Current = SnapshotBuilder.Build(map, NodeWalker.Collect(unit));
         dirty = false;
         lastHash = hash;
-
-        Current = SnapshotBuilder.Build(map, NodeWalker.Collect(unit));
         Rebuilds++;
         if (Current.Mismatch is { } mismatch && mismatch != loggedMismatch)
         {

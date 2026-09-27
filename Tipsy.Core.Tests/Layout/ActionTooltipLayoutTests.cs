@@ -67,9 +67,7 @@ public class ActionTooltipLayoutTests
     [Fact]
     public void KeybindFromTheTextTooltipJoinsTheHeader()
     {
-        var text = SnapshotBuilder.Build(TextTooltipMap.Map, Fixture.Load("text-keybind"));
-
-        var blocks = SharedLayout.WithKeybind(Layout("action-role"), text);
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Rampart [`]"));
 
         Assert.Equal("`", Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
     }
@@ -79,10 +77,67 @@ public class ActionTooltipLayoutTests
     {
         var text = SnapshotBuilder.Build(TextTooltipMap.Map, Fixture.Load("text-no-keybind"));
 
-        var blocks = SharedLayout.WithKeybind(Layout("action-role"), text);
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
 
         Assert.Equal(string.Empty, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
     }
+
+    [Theory]
+    [InlineData("Rampart [[]", "[")]
+    [InlineData("Rampart []]", "]")]
+    [InlineData("Rampart [Ctrl+[]", "Ctrl+[")]
+    [InlineData("Rampart [ Shift+X ]", "Shift+X")]
+    [InlineData("Rampart [Shift+Mouse\uE058]", "Shift+Mouse\uE058")]
+    [InlineData("Rampart \uE03C [Ctrl+1]", "Ctrl+1")]
+    public void KeybindIsTheBracketedTextAfterTheName(string tooltip, string key)
+    {
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot(tooltip));
+
+        Assert.Equal(key, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
+    }
+
+    [Theory]
+    [InlineData("Rampart [ ]")]
+    [InlineData("Rampart")]
+    public void BlankKeyOrJustTheNameAddsNothing(string tooltip)
+    {
+        var layout = Layout("action-role");
+
+        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot(tooltip)));
+    }
+
+    [Fact]
+    public void OtherTextFromTheTextTooltipIsKeptAsAnExtra()
+    {
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Summon [Carbuncle]"));
+
+        Assert.Equal(string.Empty, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
+        Assert.IsType<DividerBlock>(blocks[^2]);
+        Assert.Equal("Summon [Carbuncle]", Fixture.Plain(Assert.IsType<ExtraBlock>(blocks[^1]).Text));
+    }
+
+    [Fact]
+    public void LinesOtherPluginsAddToTheTextTooltipAreKeptAsExtras()
+    {
+        var text = TextSnapshot("Rampart [`]") with { Extras = [new ExtraLine("9", System.Text.Encoding.UTF8.GetBytes("Added by a plugin"), 0, 0)] };
+
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
+
+        Assert.Equal("`", Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
+        Assert.IsType<DividerBlock>(blocks[^2]);
+        Assert.Equal("Added by a plugin", Fixture.Plain(Assert.IsType<ExtraBlock>(blocks[^1]).Text));
+    }
+
+    [Fact]
+    public void TextTooltipRepeatingAHeaderLineAddsNothing()
+    {
+        var layout = ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load("gear-melded")));
+
+        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot("Hands")));
+    }
+
+    private static TooltipSnapshot TextSnapshot(string text) =>
+        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(System.Text.Encoding.UTF8.GetBytes(text), string.Empty, 0) }, []);
 
     private static TooltipSnapshot Snapshot(string fixture) => SnapshotBuilder.Build(ActionDetailMap.Map, Fixture.Load(fixture));
 
