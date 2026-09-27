@@ -130,14 +130,16 @@ public sealed record ThemeColors(
     }
 
     /// <summary>
-    /// The WCAG contrast ratio of the secondary text against the surface composited over white, the backdrop
-    /// that lightens a translucent dark surface the most.
+    /// The WCAG contrast ratio of the secondary text against the surface, taking the worse of the surface composited over
+    /// white and over black, since a translucent surface can sit on any part of the game.
     /// </summary>
-    public double SecondaryContrast()
+    public double SecondaryContrast() =>
+        Math.Min(Ratio(SecondaryText, Composite(Surface, SurfaceAlpha, 0xFFFFFF)), Ratio(SecondaryText, Composite(Surface, SurfaceAlpha, 0x000000)));
+
+    private static double Ratio(uint foreground, uint background)
     {
-        var surface = Composite(Surface, SurfaceAlpha, 0xFFFFFF);
-        var text = Luminance(SecondaryText);
-        var back = Luminance(surface);
+        var text = Luminance(foreground);
+        var back = Luminance(background);
         return (Math.Max(text, back) + 0.05) / (Math.Min(text, back) + 0.05);
     }
 

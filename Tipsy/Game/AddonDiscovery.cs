@@ -1,3 +1,4 @@
+#if TIPSY_PROBE
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -121,3 +122,4 @@ internal sealed unsafe class AddonDiscovery
         dirty = false;
     }
 }
+#endif

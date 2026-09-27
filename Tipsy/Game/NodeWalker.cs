@@ -17,11 +17,14 @@ internal static unsafe class NodeWalker
         return records;
     }
 
-    /// <summary>A hash of every node's id, visibility and text bytes; it changes whenever a snapshot would.</summary>
+    /// <summary>
+    /// A hash of every node's id, visibility and text bytes; it changes whenever a snapshot would. The root's visibility
+    /// is left out, as in <see cref="IsShown"/>, because hiding the addon flips it without changing the content.
+    /// </summary>
     public static int Hash(AtkUnitBase* unit)
     {
         var hash = new HashCode();
-        Hash(&unit->UldManager, ref hash);
+        Hash(&unit->UldManager, unit->RootNode, ref hash);
         return hash.ToHashCode();
     }
 
@@ -92,7 +95,7 @@ internal static unsafe class NodeWalker
         }
     }
 
-    private static void Hash(AtkUldManager* manager, ref HashCode hash)
+    private static void Hash(AtkUldManager* manager, AtkResNode* root, ref HashCode hash)
     {
         for (var i = 0; i < manager->NodeListCount; i++)
         {
@@ -100,11 +103,12 @@ internal static unsafe class NodeWalker
             if (node == null)
                 continue;
             hash.Add(node->NodeId);
-            hash.Add(node->NodeFlags & NodeFlags.Visible);
+            if (node != root)
+                hash.Add(node->NodeFlags & NodeFlags.Visible);
             if (node->Type == NodeType.Text)
                 hash.AddBytes(node->GetAsAtkTextNode()->NodeText.AsSpan());
             if ((int)node->Type >= ComponentNodeType && node->GetAsAtkComponentNode()->Component != null)
-                Hash(&node->GetAsAtkComponentNode()->Component->UldManager, ref hash);
+                Hash(&node->GetAsAtkComponentNode()->Component->UldManager, root, ref hash);
         }
     }
 

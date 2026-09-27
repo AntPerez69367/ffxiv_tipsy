@@ -20,11 +20,10 @@ public static class SampleTooltip
         new BarBlock("Condition", "100%", 1f),
         new BarBlock("Spiritbond", "42%", 0.42f),
         new KeyValueBlock("Repair Level", Utf8("Alchemist Lv. 83")),
-        new ParagraphBlock(Utf8("A sample item, shown until you hover a real one."), false),
+        new ParagraphBlock(Utf8("Preview of your settings."), false),
         new ParagraphBlock(Utf8("Sells for 1,329 gil"), true),
         new DividerBlock(),
-        new CaptionBlock(SharedLayout.ExtrasCaption),
-        new ParagraphBlock(Utf8("Lines other plugins add appear here."), false),
+        new ExtraBlock(Utf8("Lines other plugins add appear here.")),
     ];
 
     private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);

@@ -24,4 +24,36 @@ public class SeStringTextTests
 
         Assert.Equal("AB", SeStringText.Plain(bytes.ToArray()));
     }
+
+    [Fact]
+    public void SingleLineReplacesLineBreaksAndKeepsOtherPayloads()
+    {
+        var bytes = Convert.FromHexString("024804F2022903" + "4F66" + "0210010346" + "4F6620" + "02100103" + "46" + "02490201030248020103");
+
+        Assert.Equal(
+            Convert.FromHexString("024804F2022903" + "4F66" + "2046" + "4F6620" + "46" + "02490201030248020103"),
+            SeStringText.SingleLine(bytes));
+    }
+
+    [Theory]
+    [InlineData("02")]
+    [InlineData("4102")]
+    [InlineData("410248")]
+    [InlineData("0248F201")]
+    [InlineData("410248F7FF42")]
+    [InlineData("4102481001")]
+    public void TruncatedPayloadsEndTheTextWithoutThrowing(string hex)
+    {
+        var plain = SeStringText.Plain(Convert.FromHexString(hex));
+
+        Assert.True(plain is "" or "A");
+    }
+
+    [Fact]
+    public async Task LengthWithItsTopBitSetEndsTheTextInsteadOfLooping()
+    {
+        var plain = await Task.Run(() => SeStringText.Plain(Convert.FromHexString("410248FEFFFFFFF842"))).WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("A", plain);
+    }
 }

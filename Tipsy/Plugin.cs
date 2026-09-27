@@ -1,4 +1,3 @@
-using System.IO;
 using System.Linq;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
@@ -9,6 +8,9 @@ using Tipsy.Core.Layout;
 using Tipsy.Core.Tooltips;
 using Tipsy.Game;
 using Tipsy.Windows;
+#if TIPSY_PROBE
+using System.IO;
+#endif
 
 namespace Tipsy;
 
@@ -22,71 +24,82 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal static IKeyState KeyState { get; private set; } = null!;
 
     private const string CommandName = "/tipsy";
+    private const string Usage = "Use /tipsy for settings or /tipsy toggle to turn Tipsy on or off.";
 
     private readonly WindowSystem windowSystem = new("Tipsy");
     private readonly Configuration configuration;
     private readonly TooltipReader[] readers;
     private readonly NativeTooltipHider[] hiders;
+    private readonly TooltipFonts fonts;
+    private readonly ItemIcons itemIcons;
+    private readonly TooltipOverlay overlay;
+    private readonly ConfigWindow configWindow;
+#if TIPSY_PROBE
     private readonly TooltipProbe[] probes;
     private readonly AddonDiscovery discovery;
-    private readonly TooltipFonts fonts;
-    private readonly TooltipOverlay overlay;
     private readonly ProbeWindow probeWindow;
-    private readonly ConfigWindow configWindow;
+#endif
 
     public Plugin()
     {
-        var directory = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "probe");
-        var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
-        configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        configuration = Configuration.Load(PluginInterface);
         readers =
         [
             new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map),
             new TooltipReader(AddonLifecycle, Log, ActionDetailMap.Map),
             new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map),
         ];
-        hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, configuration.ReplaceTooltips))];
-        probes =
-        [
-            new TooltipProbe("ItemDetail", () => GameGui.HoveredItem.ToString(), AddonLifecycle, GameGui, Log, directory, gameVersion),
-            new TooltipProbe("ItemDetailCompare", () => GameGui.HoveredItem.ToString(), AddonLifecycle, GameGui, Log, directory, gameVersion),
-            new TooltipProbe("ActionDetail", () => $"{GameGui.HoveredAction.DetailKind}-{GameGui.HoveredAction.ActionId}", AddonLifecycle, GameGui, Log, directory, gameVersion),
-            new TooltipProbe("Tooltip", () => "text", AddonLifecycle, GameGui, Log, directory, gameVersion),
-        ];
-        discovery = new AddonDiscovery(directory);
-        fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
         TooltipSource[] sources =
         [
             new(readers[0], ItemTooltipLayout.Build, false),
             new(readers[1], ActionTooltipLayout.Build, false),
             new(readers[2], TextTooltipLayout.Build, true),
         ];
-        overlay = new TooltipOverlay(sources, GameGui, TextureProvider, fonts, new ItemIcons(DataManager), configuration);
-        configWindow = new ConfigWindow(configuration, overlay, SetReplaceTooltips);
-        probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
+        var selector = new TooltipSelector(sources, sources[2], GameGui);
+        hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, selector, configuration.ReplaceTooltips))];
+        fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
+        itemIcons = new ItemIcons(DataManager);
+        overlay = new TooltipOverlay(selector, KeyState, TextureProvider, fonts, itemIcons, configuration);
+        configWindow = new ConfigWindow(configuration, overlay, KeyState, SetReplaceTooltips);
         windowSystem.AddWindow(overlay);
-        windowSystem.AddWindow(probeWindow);
         windowSystem.AddWindow(configWindow);
+#if TIPSY_PROBE
+        var directory = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "probe");
+        var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
+        probes =
+        [
+            new TooltipProbe("ItemDetail", () => GameGui.HoveredItem.ToString(), AddonLifecycle, GameGui, Log, directory, gameVersion),
+            new TooltipProbe("ActionDetail", () => $"{GameGui.HoveredAction.DetailKind}-{GameGui.HoveredAction.ActionId}", AddonLifecycle, GameGui, Log, directory, gameVersion),
+            new TooltipProbe("Tooltip", () => "text", AddonLifecycle, GameGui, Log, directory, gameVersion),
+        ];
+        discovery = new AddonDiscovery(directory);
+        probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
+        windowSystem.AddWindow(probeWindow);
+#endif
 
-        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "\"/tipsy\" opens the settings. \"/tipsy toggle\" turns Tipsy on or off. \"/tipsy probe\" opens the tooltip probe.",
-        });
+        CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand) { HelpMessage = Usage });
 
+        PluginInterface.UiBuilder.DisableGposeUiHide = true;
+        PluginInterface.UiBuilder.DisableCutsceneUiHide = true;
         PluginInterface.UiBuilder.Draw += OnDraw;
         PluginInterface.UiBuilder.OpenConfigUi += configWindow.Toggle;
+        PluginInterface.UiBuilder.OpenMainUi += configWindow.Toggle;
     }
 
     public void Dispose()
     {
         PluginInterface.UiBuilder.Draw -= OnDraw;
         PluginInterface.UiBuilder.OpenConfigUi -= configWindow.Toggle;
+        PluginInterface.UiBuilder.OpenMainUi -= configWindow.Toggle;
         windowSystem.RemoveAllWindows();
         CommandManager.RemoveHandler(CommandName);
+#if TIPSY_PROBE
         foreach (var probe in probes)
             probe.Dispose();
+#endif
         foreach (var hider in hiders)
             hider.Dispose();
         foreach (var reader in readers)
@@ -96,9 +109,11 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnDraw()
     {
+#if TIPSY_PROBE
         discovery.Tick();
         foreach (var probe in probes)
             probe.CheckRendered();
+#endif
         windowSystem.Draw();
     }
 
@@ -116,17 +131,19 @@ public sealed class Plugin : IDalamudPlugin
             case "config":
                 configWindow.Toggle();
                 break;
-            case "probe":
-                probeWindow.Toggle();
-                break;
             case "toggle":
                 configuration.ReplaceTooltips = !configuration.ReplaceTooltips;
                 configuration.Save();
                 SetReplaceTooltips(configuration.ReplaceTooltips);
                 ChatGui.Print(configuration.ReplaceTooltips ? "Tipsy is on: replacing the game's tooltips." : "Tipsy is off: showing the game's tooltips.");
                 break;
+#if TIPSY_PROBE
+            case "probe":
+                probeWindow.Toggle();
+                break;
+#endif
             default:
-                Log.Information($"Unknown command \"{args}\"");
+                ChatGui.PrintError($"Unknown command \"{args.Trim()}\". {Usage}");
                 break;
         }
     }

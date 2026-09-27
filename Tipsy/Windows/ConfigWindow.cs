@@ -1,6 +1,8 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Plugin.Services;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
 using Tipsy.Core.Layout;
 
@@ -29,10 +31,10 @@ public sealed class ConfigWindow : Window
         (ThemeToken.SurfaceAlpha, "Background opacity"),
         (ThemeToken.Border, "Border"),
         (ThemeToken.PrimaryText, "Text"),
-        (ThemeToken.SecondaryText, "Secondary text"),
-        (ThemeToken.Accent, "Accent"),
-        (ThemeToken.Divider, "Divider"),
-        (ThemeToken.DividerAlpha, "Divider opacity"),
+        (ThemeToken.SecondaryText, "Labels and details"),
+        (ThemeToken.Accent, "Headings and bars"),
+        (ThemeToken.Divider, "Lines and bar track"),
+        (ThemeToken.DividerAlpha, "Line opacity"),
         (ThemeToken.Better, "Better than equipped"),
         (ThemeToken.Worse, "Worse than equipped"),
         (ThemeToken.Rounding, "Corner rounding"),
@@ -41,11 +43,14 @@ public sealed class ConfigWindow : Window
     private readonly Configuration configuration;
     private readonly TooltipOverlay overlay;
     private readonly Action<bool> setReplaceTooltips;
+    private readonly IKeyState keyState;
+    private bool capturingKey;
     private ThemePreset? pendingPreset;
     private bool showSample;
 
-    internal ConfigWindow(Configuration configuration, TooltipOverlay overlay, Action<bool> setReplaceTooltips) : base("Tipsy settings##config")
+    internal ConfigWindow(Configuration configuration, TooltipOverlay overlay, IKeyState keyState, Action<bool> setReplaceTooltips) : base("Tipsy settings##config")
     {
+        this.keyState = keyState;
         this.configuration = configuration;
         this.overlay = overlay;
         this.setReplaceTooltips = setReplaceTooltips;
@@ -60,51 +65,85 @@ public sealed class ConfigWindow : Window
     {
         overlay.SampleBeside = null;
         overlay.Placing = false;
+        showSample = false;
+        capturingKey = false;
     }
 
     public override void Draw()
     {
-        ImGui.Checkbox("Show sample tooltip", ref showSample);
+        ImGui.Checkbox("Preview tooltip", ref showSample);
         overlay.SampleBeside = showSample ? (ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize()) : null;
         ImGui.Spacing();
         if (!ImGui.BeginTabBar("settings"))
             return;
         Tab("General", DrawGeneral);
-        Tab("Position", DrawPosition);
+        var onPosition = Tab("Position", DrawPosition);
         Tab("Appearance", DrawAppearance);
+        if (!onPosition && overlay.Placing)
+            overlay.Placing = false;
         ImGui.EndTabBar();
     }
 
-    private static void Tab(string label, Action draw)
+    private static bool Tab(string label, Action draw)
     {
         if (!ImGui.BeginTabItem(label))
-            return;
+            return false;
         draw();
         ImGui.EndTabItem();
+        return true;
     }
 
     private void DrawGeneral()
     {
         var replace = configuration.ReplaceTooltips;
-        if (ImGui.Checkbox("Replace the game's tooltips", ref replace))
+        if (ImGui.Checkbox("Use Tipsy tooltips", ref replace))
         {
             configuration.ReplaceTooltips = replace;
             configuration.Save();
             setReplaceTooltips(replace);
         }
 
-        Hint("When off, only the game's own tooltips show.");
+        Hint("Off shows the game's own tooltips.");
         ImGui.Spacing();
 
         if (!BeginRows("general", false))
             return;
-        var width = configuration.Width;
-        var tokens = new LayoutTokens();
-        Row("Width");
-        if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px"))
-            configuration.Width = width;
-        SaveAfterEdit();
+        Row("Hold to hide");
+        DrawHideKey();
         ImGui.EndTable();
+        Hint(capturingKey
+            ? "Press the key to use. Esc cancels, Backspace sets no key."
+            : "Hold this key to hide Tipsy's tooltip when it covers something.");
+    }
+
+    private void DrawHideKey()
+    {
+        if (capturingKey)
+            CaptureHideKey();
+        var name = configuration.HideKey == VirtualKey.NO_KEY ? "Not set" : configuration.HideKey.GetFancyName();
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted(capturingKey ? "Press a key..." : name);
+        ImGui.SameLine();
+        if (ImGui.Button(capturingKey ? "Cancel" : "Change key"))
+            capturingKey = !capturingKey;
+    }
+
+    private void CaptureHideKey()
+    {
+        foreach (var key in keyState.GetValidVirtualKeys())
+        {
+            if (key is VirtualKey.LBUTTON or VirtualKey.RBUTTON or VirtualKey.MBUTTON || !keyState[key])
+                continue;
+            if (key != VirtualKey.ESCAPE)
+            {
+                configuration.HideKey = key == VirtualKey.BACK ? VirtualKey.NO_KEY : key;
+                configuration.Save();
+            }
+
+            keyState[key] = false;
+            capturingKey = false;
+            return;
+        }
     }
 
     private void DrawPosition()
@@ -112,17 +151,19 @@ public sealed class ConfigWindow : Window
         if (BeginRows("position", false))
         {
             Row("Position");
-            var current = Array.Find(Anchors, entry => entry.Anchor == configuration.Anchor).Label;
+            var current = Array.Find(Anchors, entry => entry.Anchor == configuration.Anchor).Label ?? Anchors[0].Label;
             if (ImGui.BeginCombo("##anchor", current))
             {
                 foreach (var (anchor, label) in Anchors)
                 {
                     if (!ImGui.Selectable(label, anchor == configuration.Anchor))
                         continue;
+                    if (anchor == AnchorPreset.Custom && configuration.Anchor != AnchorPreset.Custom)
+                        overlay.Placing = true;
+                    else if (anchor != AnchorPreset.Custom)
+                        overlay.Placing = false;
                     configuration.Anchor = anchor;
                     configuration.Save();
-                    if (anchor != AnchorPreset.Custom)
-                        overlay.Placing = false;
                 }
 
                 ImGui.EndCombo();
@@ -131,11 +172,11 @@ public sealed class ConfigWindow : Window
             if (configuration.Anchor == AnchorPreset.Cursor)
             {
                 var offset = configuration.CursorOffset;
-                Row("Right of the cursor");
+                Row("Horizontal offset");
                 if (ImGui.SliderFloat("##offsetX", ref offset.X, -MaxCursorOffset, MaxCursorOffset, "%.0f px"))
                     configuration.CursorOffset = offset;
                 SaveAfterEdit();
-                Row("Below the cursor");
+                Row("Vertical offset");
                 if (ImGui.SliderFloat("##offsetY", ref offset.Y, -MaxCursorOffset, MaxCursorOffset, "%.0f px"))
                     configuration.CursorOffset = offset;
                 SaveAfterEdit();
@@ -144,18 +185,13 @@ public sealed class ConfigWindow : Window
             ImGui.EndTable();
         }
 
+        if (configuration.Anchor != AnchorPreset.Custom)
+            return;
         ImGui.Spacing();
-        if (ImGui.Button(overlay.Placing ? "Done placing" : "Place tooltip"))
-        {
+        if (ImGui.Button(overlay.Placing ? "Done" : "Move tooltip..."))
             overlay.Placing = !overlay.Placing;
-            if (overlay.Placing && configuration.Anchor != AnchorPreset.Custom)
-            {
-                configuration.Anchor = AnchorPreset.Custom;
-                configuration.Save();
-            }
-        }
-
-        Hint(overlay.Placing ? "Drag the tooltip where you want it, then press Done placing." : "Drag the tooltip to a spot of your own.");
+        if (overlay.Placing)
+            Hint("Drag the tooltip where you want it, then press Done.");
     }
 
     private void DrawAppearance()
@@ -181,28 +217,34 @@ public sealed class ConfigWindow : Window
                 ImGui.EndCombo();
             }
 
+            var width = configuration.Width;
+            var tokens = new LayoutTokens();
+            Row("Width");
+            if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px"))
+                configuration.Width = width;
+            SaveAfterEdit();
             ImGui.EndTable();
         }
 
         if (pendingPreset is not null)
             ImGui.OpenPopup(SwitchThemePopup);
-        DrawSwitchThemePopup(modified);
+        DrawSwitchThemePopup();
 
         ImGui.BeginDisabled(modified == 0);
-        if (ImGui.Button("Reset all colors"))
+        if (ImGui.Button("Reset customizations"))
             ClearOverrides();
         ImGui.EndDisabled();
 
         var theme = configuration.Theme();
         DrawContrastWarning(theme);
-        if (!ImGui.CollapsingHeader("Customize colors") || !BeginRows("tokens", true))
+        if (!ImGui.CollapsingHeader("Customize") || !BeginRows("tokens", true))
             return;
         foreach (var (token, tokenLabel) in Tokens)
             DrawToken(theme, token, tokenLabel);
         ImGui.EndTable();
     }
 
-    private void DrawSwitchThemePopup(int modified)
+    private void DrawSwitchThemePopup()
     {
         var open = true;
         if (!ImGui.BeginPopupModal(SwitchThemePopup, ref open, ImGuiWindowFlags.AlwaysAutoResize))
@@ -212,15 +254,15 @@ public sealed class ConfigWindow : Window
             return;
         }
 
-        ImGui.TextUnformatted($"You have changed {modified} colors in {ThemeColors.NameOf(configuration.Preset)}.");
-        if (ImGui.Button($"Keep them on {ThemeColors.NameOf(pendingPreset!.Value)}"))
+        ImGui.TextUnformatted($"You've customized {ThemeColors.NameOf(configuration.Preset)}.");
+        if (ImGui.Button("Keep my changes"))
         {
             SwitchTheme(pendingPreset!.Value, false);
             ImGui.CloseCurrentPopup();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button("Discard them"))
+        if (ImGui.Button($"Use {ThemeColors.NameOf(pendingPreset!.Value)} as it comes"))
         {
             SwitchTheme(pendingPreset!.Value, true);
             ImGui.CloseCurrentPopup();
@@ -258,7 +300,7 @@ public sealed class ConfigWindow : Window
         if (contrast >= ThemeColors.MinimumContrast)
             return;
         ImGui.PushTextWrapPos(0);
-        ImGui.TextColored(new Vector4(1f, 0.6f, 0.4f, 1f), "Secondary text may be hard to read on this background.");
+        ImGui.TextColored(new Vector4(1f, 0.6f, 0.4f, 1f), "Labels and details may be hard to read on this background.");
         ImGui.PopTextWrapPos();
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip($"Contrast is {contrast:F1}:1. Text stays readable at {ThemeColors.MinimumContrast}:1 or more.");

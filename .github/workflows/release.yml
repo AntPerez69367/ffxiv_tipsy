@@ -1,12 +1,15 @@
-name: Tipsy PR Builder
+name: Tipsy Release
 
 on:
-  pull_request:
-    branches: [ main ]
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
 
 jobs:
 
-  build:
+  release:
     runs-on: windows-2022
 
     steps:
@@ -32,10 +35,10 @@ jobs:
     - name: Test
       run: dotnet test Tipsy.Core.Tests --configuration Release --no-build
 
-    - name: Store artifacts
-      uses: actions/upload-artifact@v4
+    - name: Publish release
+      uses: softprops/action-gh-release@v2
       with:
-        name: Tipsy
-        path: .\Tipsy\bin\x64\Release\Tipsy\*
-        if-no-files-found: error
-        retention-days: 1
+        files: |
+          Tipsy/bin/x64/Release/Tipsy/latest.zip
+          Tipsy/bin/x64/Release/Tipsy/Tipsy.json
+        fail_on_unmatched_files: true

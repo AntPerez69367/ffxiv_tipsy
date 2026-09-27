@@ -46,4 +46,16 @@ public class NodeDumpTests
             Assert.Equal(nodes[i].Text, again[i].Text);
         }
     }
+
+    [Theory]
+    [InlineData("0\t1\tRes")]
+    [InlineData("2\t1\tRes\t0\t1\t1\t0\t0\t0\t0\t10\t10\t1\t1\t0\t\t\t")]
+    public void MalformedRowsAreReportedWithTheirLine(string row)
+    {
+        var dump = $"header\nheader\n{NodeDump.ColumnHeader}\n{row}\n";
+
+        var error = Assert.Throws<FormatException>(() => NodeDump.Read(new StringReader(dump)));
+
+        Assert.StartsWith("Line 4", error.Message);
+    }
 }

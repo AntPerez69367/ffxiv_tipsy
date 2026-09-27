@@ -1,3 +1,4 @@
+#if TIPSY_PROBE
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -124,7 +125,7 @@ internal sealed unsafe class TooltipProbe : IDisposable
 
     public void SetHide(HideMethod method)
     {
-        if (TryGetUnit(out var unit))
+        if (Hide != HideMethod.Off && TryGetUnit(out var unit))
             Restore(unit);
         Hide = method;
         Overwrites = 0;
@@ -295,3 +296,4 @@ internal sealed unsafe class TooltipProbe : IDisposable
             output.WriteLine($"{method}\t{counter.Opens}\t{counter.Frames}\t{counter.Leaked}\t{counter.LeakedAtOpen}\t{counter.MissedPreDraw}");
     }
 }
+#endif
