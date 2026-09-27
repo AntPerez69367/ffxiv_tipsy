@@ -13,7 +13,7 @@ internal static unsafe class NodeWalker
     public static List<NodeRecord> Collect(AtkUnitBase* unit)
     {
         var records = new List<NodeRecord>();
-        Collect(&unit->UldManager, 0, [], records);
+        Collect(&unit->UldManager, unit->RootNode, 0, [], records);
         return records;
     }
 
@@ -25,9 +25,13 @@ internal static unsafe class NodeWalker
         return hash.ToHashCode();
     }
 
-    public static bool IsShown(AtkResNode* node)
+    /// <summary>
+    /// Whether the node and its ancestors below <paramref name="root"/> are visible. The root itself is skipped: setting
+    /// an addon's alpha to 0 clears the root's visibility flag while the addon stays open and keeps its content.
+    /// </summary>
+    public static bool IsShown(AtkResNode* node, AtkResNode* root)
     {
-        for (var current = node; current != null; current = current->ParentNode)
+        for (var current = node; current != null && current != root; current = current->ParentNode)
         {
             if ((current->NodeFlags & NodeFlags.Visible) == 0)
                 return false;
@@ -36,7 +40,7 @@ internal static unsafe class NodeWalker
         return true;
     }
 
-    private static void Collect(AtkUldManager* manager, int depth, List<uint> components, List<NodeRecord> records)
+    private static void Collect(AtkUldManager* manager, AtkResNode* root, int depth, List<uint> components, List<NodeRecord> records)
     {
         for (var i = 0; i < manager->NodeListCount; i++)
         {
@@ -67,7 +71,7 @@ internal static unsafe class NodeWalker
                 isComponent ? $"Component{(int)node->Type}" : node->Type.ToString(),
                 parent == null ? 0 : parent->NodeId,
                 (node->NodeFlags & NodeFlags.Visible) != 0,
-                IsShown(node),
+                IsShown(node, root),
                 node->X,
                 node->Y,
                 node->ScreenX,
@@ -83,7 +87,7 @@ internal static unsafe class NodeWalker
             if (!isComponent || node->GetAsAtkComponentNode()->Component == null)
                 continue;
             components.Add(node->NodeId);
-            Collect(&node->GetAsAtkComponentNode()->Component->UldManager, depth + 1, components, records);
+            Collect(&node->GetAsAtkComponentNode()->Component->UldManager, root, depth + 1, components, records);
             components.RemoveAt(components.Count - 1);
         }
     }
