@@ -117,6 +117,18 @@ public class ActionTooltipLayoutTests
     }
 
     [Fact]
+    public void LinesOtherPluginsAddToTheTextTooltipAreKeptAsExtras()
+    {
+        var text = TextSnapshot("Rampart [`]") with { Extras = [new ExtraLine("9", System.Text.Encoding.UTF8.GetBytes("Added by a plugin"), 0, 0)] };
+
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
+
+        Assert.Equal("`", Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
+        Assert.IsType<DividerBlock>(blocks[^2]);
+        Assert.Equal("Added by a plugin", Fixture.Plain(Assert.IsType<ExtraBlock>(blocks[^1]).Text));
+    }
+
+    [Fact]
     public void TextTooltipRepeatingAHeaderLineAddsNothing()
     {
         var layout = ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load("gear-melded")));

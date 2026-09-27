@@ -18,26 +18,37 @@ public static class SharedLayout
     /// <summary>
     /// Folds the text tooltip the game opens next to an item or action into that tooltip. When it is the same name with
     /// a bracketed key, as in "Interject [`]", the key becomes the header's keybind. When it repeats the name or a header
-    /// line, such as the "Legs" the Character window shows, it adds nothing. Any other text is kept as an extra line, so
-    /// hiding the text tooltip never loses what it said.
+    /// line, such as the "Legs" the Character window shows, it adds nothing. Any other text, and any line other plugins
+    /// added to the text tooltip, is kept as an extra line, so hiding the text tooltip never loses what it said.
     /// </summary>
     public static List<TooltipBlock> WithTextTooltip(List<TooltipBlock> blocks, TooltipSnapshot textTooltip)
     {
-        if (blocks.Count == 0 || blocks[0] is not HeaderBlock header || !textTooltip.Slots.TryGetValue(TextTooltipMap.Text, out var text))
+        if (blocks.Count == 0 || blocks[0] is not HeaderBlock header)
             return blocks;
 
-        var plain = SeStringText.Plain(text.Text).Trim();
-        var name = Comparable(SeStringText.Plain(header.Name));
-        var comparable = Comparable(plain);
-        if (plain.Length == 0 || comparable == name || header.Lines.Any(line => Comparable(SeStringText.Plain(line)) == comparable))
-            return blocks;
-        if (KeyAfterName(plain, name) is { } key)
-            return key.Length == 0 ? blocks : [header with { Keybind = key }, .. blocks.Skip(1)];
+        var folded = header;
+        List<byte[]> extras = [];
+        if (textTooltip.Slots.TryGetValue(TextTooltipMap.Text, out var text))
+        {
+            var plain = SeStringText.Plain(text.Text).Trim();
+            var name = Comparable(SeStringText.Plain(header.Name));
+            var comparable = Comparable(plain);
+            var repeats = plain.Length == 0 || comparable == name || header.Lines.Any(line => Comparable(SeStringText.Plain(line)) == comparable);
+            var key = repeats ? null : KeyAfterName(plain, name);
+            if (key is { Length: > 0 })
+                folded = header with { Keybind = key };
+            else if (!repeats && key is null)
+                extras.Add(text.Text);
+        }
 
-        List<TooltipBlock> combined = [.. blocks];
-        if (combined[^1] is not ExtraBlock)
+        extras.AddRange(textTooltip.Extras.Select(extra => extra.Text));
+        if (ReferenceEquals(folded, header) && extras.Count == 0)
+            return blocks;
+
+        List<TooltipBlock> combined = [folded, .. blocks.Skip(1)];
+        if (extras.Count > 0 && combined[^1] is not ExtraBlock)
             combined.Add(new DividerBlock());
-        combined.Add(new ExtraBlock(text.Text));
+        combined.AddRange(extras.Select(extra => new ExtraBlock(extra)));
         return combined;
     }
 

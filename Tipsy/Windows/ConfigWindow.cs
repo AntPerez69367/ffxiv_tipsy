@@ -254,17 +254,18 @@ public sealed class ConfigWindow : Window
             return;
         }
 
+        var preset = pendingPreset!.Value;
         ImGui.TextUnformatted($"You've customized {ThemeColors.NameOf(configuration.Preset)}.");
         if (ImGui.Button("Keep my changes"))
         {
-            SwitchTheme(pendingPreset!.Value, false);
+            SwitchTheme(preset, false);
             ImGui.CloseCurrentPopup();
         }
 
         ImGui.SameLine();
-        if (ImGui.Button($"Use {ThemeColors.NameOf(pendingPreset!.Value)} as it comes"))
+        if (ImGui.Button($"Use {ThemeColors.NameOf(preset)} as it comes"))
         {
-            SwitchTheme(pendingPreset!.Value, true);
+            SwitchTheme(preset, true);
             ImGui.CloseCurrentPopup();
         }
 
