@@ -33,6 +33,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TooltipFonts fonts;
     private readonly TooltipOverlay overlay;
     private readonly ProbeWindow probeWindow;
+    private readonly ConfigWindow configWindow;
 
     public Plugin()
     {
@@ -40,7 +41,7 @@ public sealed class Plugin : IDalamudPlugin
         var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
         configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         readers = [new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map)];
-        hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, configuration.HideNativeTooltip))];
+        hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, configuration.ReplaceTooltips))];
         probes =
         [
             new TooltipProbe("ItemDetail", () => GameGui.HoveredItem.ToString(), AddonLifecycle, GameGui, Log, directory, gameVersion),
@@ -50,22 +51,26 @@ public sealed class Plugin : IDalamudPlugin
         ];
         discovery = new AddonDiscovery(directory);
         fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
-        overlay = new TooltipOverlay(readers[0], GameGui, TextureProvider, fonts, new ItemIcons(DataManager));
+        overlay = new TooltipOverlay(readers[0], GameGui, TextureProvider, fonts, new ItemIcons(DataManager), configuration);
+        configWindow = new ConfigWindow(configuration, overlay, SetReplaceTooltips);
         probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
         windowSystem.AddWindow(overlay);
         windowSystem.AddWindow(probeWindow);
+        windowSystem.AddWindow(configWindow);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "\"/tipsy hide\" turns hiding the game's tooltip on or off. \"/tipsy\" or \"/tipsy probe\" toggles the probe window.",
+            HelpMessage = "\"/tipsy\" opens the settings. \"/tipsy toggle\" turns Tipsy on or off. \"/tipsy probe\" opens the tooltip probe.",
         });
 
         PluginInterface.UiBuilder.Draw += OnDraw;
+        PluginInterface.UiBuilder.OpenConfigUi += configWindow.Toggle;
     }
 
     public void Dispose()
     {
         PluginInterface.UiBuilder.Draw -= OnDraw;
+        PluginInterface.UiBuilder.OpenConfigUi -= configWindow.Toggle;
         windowSystem.RemoveAllWindows();
         CommandManager.RemoveHandler(CommandName);
         foreach (var probe in probes)
@@ -85,20 +90,28 @@ public sealed class Plugin : IDalamudPlugin
         windowSystem.Draw();
     }
 
+    private void SetReplaceTooltips(bool replace)
+    {
+        foreach (var hider in hiders)
+            hider.Enabled = replace;
+    }
+
     private void OnCommand(string command, string args)
     {
         switch (args.Trim().ToLowerInvariant())
         {
             case "":
+            case "config":
+                configWindow.Toggle();
+                break;
             case "probe":
                 probeWindow.Toggle();
                 break;
-            case "hide":
-                configuration.HideNativeTooltip = !configuration.HideNativeTooltip;
+            case "toggle":
+                configuration.ReplaceTooltips = !configuration.ReplaceTooltips;
                 configuration.Save();
-                foreach (var hider in hiders)
-                    hider.Enabled = configuration.HideNativeTooltip;
-                ChatGui.Print(configuration.HideNativeTooltip ? "Tipsy: hiding the game's item tooltip." : "Tipsy: showing the game's item tooltip again.");
+                SetReplaceTooltips(configuration.ReplaceTooltips);
+                ChatGui.Print(configuration.ReplaceTooltips ? "Tipsy is on: replacing the game's tooltips." : "Tipsy is off: showing the game's tooltips.");
                 break;
             default:
                 Log.Information($"Unknown command \"{args}\"");

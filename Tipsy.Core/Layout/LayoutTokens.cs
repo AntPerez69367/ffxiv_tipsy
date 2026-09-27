@@ -19,7 +19,6 @@ public sealed record LayoutTokens
     public float BarRounding { get; init; } = 3;
     public float OverflowFade { get; init; } = 24;
     public float ViewportInset { get; init; } = 8;
-    public float Rounding { get; init; } = 6;
 
     public float WrapWidth => Width - (2 * Padding);
 
@@ -41,6 +40,5 @@ public sealed record LayoutTokens
         BarRounding = BarRounding * scale,
         OverflowFade = OverflowFade * scale,
         ViewportInset = ViewportInset * scale,
-        Rounding = Rounding * scale,
     };
 }
