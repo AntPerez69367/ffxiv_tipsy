@@ -43,6 +43,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     private bool fitting;
     private IReadOnlyList<TooltipBlock> shown = [];
     private TooltipSnapshot? laidOut;
+    private TooltipSnapshot? laidOutText;
     private List<TooltipBlock> blocks = [];
     private float lastContentHeight;
     private WindowPlacement placement;
@@ -85,10 +86,14 @@ public sealed unsafe partial class TooltipOverlay : Window
     {
         var source = OpenSource();
         var live = source is not null;
-        if (source is not null && !ReferenceEquals(source.Reader.Current, laidOut))
+        var text = source is not null && source.Reader.Addon != TextTooltipMap.Addon ? OpenText() : null;
+        if (source is not null && (!ReferenceEquals(source.Reader.Current, laidOut) || !ReferenceEquals(text, laidOutText)))
         {
             laidOut = source.Reader.Current;
+            laidOutText = text;
             blocks = source.Layout(source.Reader.Current!);
+            if (text is not null)
+                blocks = SharedLayout.WithKeybind(blocks, text);
         }
 
         showingSample = false;
@@ -178,16 +183,15 @@ public sealed unsafe partial class TooltipOverlay : Window
             DrawOverflowFade();
     }
 
-    private TooltipSource? OpenSource()
-    {
-        foreach (var source in sources)
-        {
-            var unit = (AtkUnitBase*)gameGui.GetAddonByName(source.Reader.Addon).Address;
-            if (unit != null && unit->IsVisible && source.Reader.Current is not null)
-                return source;
-        }
+    private TooltipSource? OpenSource() => sources.FirstOrDefault(IsShowing);
 
-        return null;
+    private TooltipSnapshot? OpenText() =>
+        sources.FirstOrDefault(source => source.Reader.Addon == TextTooltipMap.Addon && IsShowing(source))?.Reader.Current;
+
+    private bool IsShowing(TooltipSource source)
+    {
+        var unit = (AtkUnitBase*)gameGui.GetAddonByName(source.Reader.Addon).Address;
+        return unit != null && unit->IsVisible && source.Reader.Current is not null;
     }
 
     private float FittedWidth(float scale)
@@ -297,9 +301,12 @@ public sealed unsafe partial class TooltipOverlay : Window
         }
 
         var textWidth = tokens.WrapWidth - tokens.IconSize - tokens.IconTextGap;
+        var nameWidth = textWidth;
         ImGui.BeginGroup();
+        if (header.Keybind.Length > 0)
+            nameWidth -= DrawKeycap(KeyLabels.Readable(header.Keybind)) + tokens.InlineGap;
         using (fonts.Title.Push())
-            SeString(header.Name, textWidth, theme.PrimaryText);
+            SeString(header.Name, nameWidth, theme.PrimaryText);
         using (fonts.Small.Push())
         {
             foreach (var line in header.Lines)
@@ -309,6 +316,23 @@ public sealed unsafe partial class TooltipOverlay : Window
         }
 
         ImGui.EndGroup();
+    }
+
+    private float DrawKeycap(string keybind)
+    {
+        float nameLineHeight;
+        using (fonts.Title.Push())
+            nameLineHeight = ImGui.GetTextLineHeight();
+        using var font = fonts.Body.Push();
+        var padding = new Vector2(tokens.InlineGap, tokens.RowGap / 2);
+        var size = ImGui.CalcTextSize(keybind) + (padding * 2);
+        var right = ImGui.GetWindowPos().X + tokens.Padding + tokens.WrapWidth;
+        var min = new Vector2(right - size.X, ImGui.GetCursorScreenPos().Y + ((nameLineHeight - size.Y) / 2));
+        var drawList = ImGui.GetWindowDrawList();
+        drawList.AddRectFilled(min, min + size, ImGui.GetColorU32(Colour(theme.Border, 0.6f)), tokens.BarRounding);
+        drawList.AddRect(min, min + size, ImGui.GetColorU32(Colour(theme.Border)), tokens.BarRounding);
+        drawList.AddText(min + padding, ImGui.GetColorU32(Colour(theme.PrimaryText)), keybind);
+        return size.X;
     }
 
     private void DrawIconCooldown(string cooldown)

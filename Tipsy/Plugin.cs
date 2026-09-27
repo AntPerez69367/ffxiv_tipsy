@@ -41,7 +41,12 @@ public sealed class Plugin : IDalamudPlugin
         var directory = Path.Combine(PluginInterface.GetPluginConfigDirectory(), "probe");
         var gameVersion = DataManager.GameData.Repositories["ffxiv"].Version;
         configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
-        readers = [new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map), new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map)];
+        readers =
+        [
+            new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map),
+            new TooltipReader(AddonLifecycle, Log, ActionDetailMap.Map),
+            new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map),
+        ];
         hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, configuration.ReplaceTooltips))];
         probes =
         [
@@ -55,7 +60,8 @@ public sealed class Plugin : IDalamudPlugin
         TooltipSource[] sources =
         [
             new(readers[0], ItemTooltipLayout.Build, false),
-            new(readers[1], TextTooltipLayout.Build, true),
+            new(readers[1], ActionTooltipLayout.Build, false),
+            new(readers[2], TextTooltipLayout.Build, true),
         ];
         overlay = new TooltipOverlay(sources, GameGui, TextureProvider, fonts, new ItemIcons(DataManager), configuration);
         configWindow = new ConfigWindow(configuration, overlay, SetReplaceTooltips);

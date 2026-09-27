@@ -1,0 +1,6 @@
+game 2026.09.15.0000.0000	Tooltip text	hide Off
+addon scale 1 at 2293,1131 alpha 0 rootColorA 0
+depth	id	type	parent	visible	shown	x	y	screenX	screenY	width	height	scaleX	scaleY	partId	texture	textHex	text
+0	1	Res	0	1	1	2293	1131	2293	1131	137	24	2	2	0			
+0	3	NineGrid	1	1	1	0	0	2293	1131	137	24	1	1	0			
+0	2	Text	1	1	1	8	0	2309	1131	75	24	1	1	0		52656C656173652044656669616E6365	Release Defiance
