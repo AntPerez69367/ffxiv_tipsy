@@ -4,6 +4,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
 using Tipsy.Core.Layout;
 using Tipsy.Core.Tooltips;
 using Tipsy.Game;
@@ -27,6 +28,8 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IKeyState KeyState { get; private set; } = null!;
 
     private const string CommandName = "/tipsy";
+    private const int FirstSlotLabel = 738;
+    private const int SlotLabelCount = 14;
     private const string Usage = "Use /tipsy for settings or /tipsy toggle to turn Tipsy on or off.";
 
     private readonly WindowSystem windowSystem = new("Tipsy");
@@ -55,7 +58,7 @@ public sealed class Plugin : IDalamudPlugin
             new(actionReader, ActionTooltipLayout.Build, false),
             textSource,
         ];
-        var selector = new TooltipSelector(sources, textSource, GameGui);
+        var selector = new TooltipSelector(sources, textSource, GameGui, SlotLabels());
         hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, selector, configuration.ReplaceTooltips))];
         fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
         var renderer = new TooltipBlockRenderer(TextureProvider, fonts, new ItemIcons(DataManager, Log));
@@ -112,6 +115,13 @@ public sealed class Plugin : IDalamudPlugin
             probe.CheckRendered();
 #endif
         windowSystem.Draw();
+    }
+
+    /// <summary>The Character window's equipment slot names, from Main Hand to Soul Crystal, in the client's language.</summary>
+    private static string[] SlotLabels()
+    {
+        var addon = DataManager.GetExcelSheet<Addon>();
+        return [.. Enumerable.Range(FirstSlotLabel, SlotLabelCount).Select(id => addon.GetRow((uint)id).Text.ExtractText())];
     }
 
     private void SetReplaceTooltips(bool replace)
