@@ -18,8 +18,9 @@ internal static unsafe class NodeWalker
     }
 
     /// <summary>
-    /// A hash of every node's id, visibility and text bytes; it changes whenever a snapshot would. The root's visibility
-    /// is left out, as in <see cref="IsShown"/>, because hiding the addon flips it without changing the content.
+    /// A hash of every node's id, visibility, position, whether it has a size, image part and text bytes; it changes
+    /// whenever a snapshot would. The root's visibility and position are left out, as in <see cref="IsShown"/>, because
+    /// hiding or moving the addon changes them without changing the content.
     /// </summary>
     public static int Hash(AtkUnitBase* unit)
     {
@@ -106,7 +107,15 @@ internal static unsafe class NodeWalker
             if (node != root)
                 hash.Add(node->NodeFlags & NodeFlags.Visible);
             if (node->Type == NodeType.Text)
+            {
                 hash.AddBytes(node->GetAsAtkTextNode()->NodeText.AsSpan());
+                hash.Add(node->X);
+                hash.Add(node->Y);
+            }
+
+            hash.Add(node->Width > 0 && node->Height > 0);
+            if (node->Type == NodeType.Image)
+                hash.Add(node->GetAsAtkImageNode()->PartId);
             if ((int)node->Type >= ComponentNodeType && node->GetAsAtkComponentNode()->Component != null)
                 Hash(&node->GetAsAtkComponentNode()->Component->UldManager, root, ref hash);
         }
