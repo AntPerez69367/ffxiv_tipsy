@@ -4,12 +4,14 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Windowing;
+using Dalamud.Utility;
 using Tipsy.Core.Layout;
 
 namespace Tipsy.Windows;
 
 public sealed class ConfigWindow : Window
 {
+    private const string KofiUrl = "https://ko-fi.com/elserie";
     private const string SwitchThemePopup = "Switch theme?##switchTheme";
     private const float MaxCursorOffset = 100;
     private const float MaxRounding = 16;
@@ -82,6 +84,10 @@ public sealed class ConfigWindow : Window
         if (!onPosition && overlay.Placing)
             overlay.Placing = false;
         ImGui.EndTabBar();
+
+        ImGui.Spacing();
+        if (ImGui.Button("Support on Ko-fi"))
+            Util.OpenLink(KofiUrl);
     }
 
     private static bool Tab(string label, Action draw)
