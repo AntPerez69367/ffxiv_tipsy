@@ -18,13 +18,15 @@ internal sealed unsafe class TooltipSelector
     private readonly IReadOnlyList<TooltipSource> sources;
     private readonly TooltipSource text;
     private readonly IGameGui gameGui;
+    private readonly IReadOnlyCollection<string> slotLabels;
     private readonly Dictionary<TooltipSource, (TooltipSnapshot Main, TooltipSnapshot? Folded, List<TooltipBlock> Blocks)> laidOut = [];
 
-    public TooltipSelector(IReadOnlyList<TooltipSource> sources, TooltipSource text, IGameGui gameGui)
+    public TooltipSelector(IReadOnlyList<TooltipSource> sources, TooltipSource text, IGameGui gameGui, IReadOnlyCollection<string> slotLabels)
     {
         this.sources = sources;
         this.text = text;
         this.gameGui = gameGui;
+        this.slotLabels = slotLabels;
     }
 
     public TooltipSource? Drawn { get; private set; }
@@ -63,7 +65,7 @@ internal sealed unsafe class TooltipSelector
             return cached.Blocks;
         var blocks = source.Layout(main);
         if (folded is not null)
-            blocks = SharedLayout.WithTextTooltip(blocks, folded);
+            blocks = SharedLayout.WithTextTooltip(blocks, folded, slotLabels);
         laidOut[source] = (main, folded, blocks);
         return blocks;
     }

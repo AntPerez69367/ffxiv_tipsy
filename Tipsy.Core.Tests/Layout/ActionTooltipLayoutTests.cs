@@ -68,7 +68,7 @@ public class ActionTooltipLayoutTests
     [Fact]
     public void KeybindFromTheTextTooltipJoinsTheHeader()
     {
-        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Rampart [`]"));
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Rampart [`]"), []);
 
         Assert.Equal("`", Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
     }
@@ -78,7 +78,7 @@ public class ActionTooltipLayoutTests
     {
         var text = SnapshotBuilder.Build(TextTooltipMap.Map, Fixture.Load("text-no-keybind"));
 
-        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text, []);
 
         Assert.Equal(string.Empty, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
     }
@@ -92,7 +92,7 @@ public class ActionTooltipLayoutTests
     [InlineData("Rampart \uE03C [Ctrl+1]", "Ctrl+1")]
     public void KeybindIsTheBracketedTextAfterTheName(string tooltip, string key)
     {
-        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot(tooltip));
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot(tooltip), []);
 
         Assert.Equal(key, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
     }
@@ -104,13 +104,13 @@ public class ActionTooltipLayoutTests
     {
         var layout = Layout("action-role");
 
-        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot(tooltip)));
+        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot(tooltip), []));
     }
 
     [Fact]
     public void OtherTextFromTheTextTooltipIsKeptAsAnExtra()
     {
-        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Summon [Carbuncle]"));
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), TextSnapshot("Summon [Carbuncle]"), []);
 
         Assert.Equal(string.Empty, Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
         Assert.IsType<DividerBlock>(blocks[^2]);
@@ -122,7 +122,7 @@ public class ActionTooltipLayoutTests
     {
         var text = TextSnapshot("Rampart [`]") with { Extras = [new ExtraLine("9", SeText.Utf8("Added by a plugin"), 0, 0)] };
 
-        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text);
+        var blocks = SharedLayout.WithTextTooltip(Layout("action-role"), text, []);
 
         Assert.Equal("`", Assert.IsType<HeaderBlock>(blocks[0]).Keybind);
         Assert.IsType<DividerBlock>(blocks[^2]);
@@ -134,11 +134,32 @@ public class ActionTooltipLayoutTests
     {
         var layout = ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load("gear-melded")));
 
-        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot("Hands")));
+        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot("Hands"), []));
+    }
+
+    [Theory]
+    [InlineData("Left Ring")]
+    [InlineData("Wrists")]
+    [InlineData("Main Hand")]
+    public void TextTooltipNamingAnEquipmentSlotAddsNothing(string slot)
+    {
+        var layout = ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load("gear-melded")));
+
+        Assert.Same(layout, SharedLayout.WithTextTooltip(layout, TextSnapshot(slot), ["Main Hand", "Wrists", "Right Ring", "Left Ring"]));
+    }
+
+    [Fact]
+    public void TextTooltipThatIsNotASlotLabelIsStillKept()
+    {
+        var layout = ItemTooltipLayout.Build(SnapshotBuilder.Build(ItemDetailMap.Map, Fixture.Load("gear-melded")));
+
+        var blocks = SharedLayout.WithTextTooltip(layout, TextSnapshot("Left Ring"), ["Right Ring"]);
+
+        Assert.Equal("Left Ring", Fixture.Plain(Assert.IsType<ExtraBlock>(blocks[^1]).Text));
     }
 
     private static TooltipSnapshot TextSnapshot(string text) =>
-        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(SeText.Utf8(text), string.Empty, 0) }, []);
+        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(SeText.Utf8(text), string.Empty, 0, default) }, []);
 
     private static TooltipSnapshot Snapshot(string fixture) => SnapshotBuilder.Build(ActionDetailMap.Map, Fixture.Load(fixture));
 

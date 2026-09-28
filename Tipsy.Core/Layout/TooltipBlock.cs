@@ -1,3 +1,4 @@
+using Tipsy.Core.Nodes;
 using Tipsy.Core.Text;
 
 namespace Tipsy.Core.Layout;
@@ -7,11 +8,14 @@ public abstract record TooltipBlock;
 
 /// <summary>
 /// The header of an item or action. <see cref="IconCooldown"/> is the remaining recast the game draws over the icon,
-/// and <see cref="Keybind"/> the hotbar key shown by the text tooltip that opens alongside; either may be empty.
+/// <see cref="Keybind"/> the hotbar key shown by the text tooltip that opens alongside, and <see cref="Badges"/> the
+/// small icons the game shows in the header, such as where the item can be stored; any of them may be empty.
 /// </summary>
 public sealed record HeaderBlock(string? IconTexture, string IconCooldown, SeText Name, EquatableList<SeText> Lines, EquatableList<SeText> Flags) : TooltipBlock
 {
     public string Keybind { get; init; } = string.Empty;
+
+    public EquatableList<ImagePart> Badges { get; init; } = [];
 }
 
 public sealed record ParamsBlock(EquatableList<ParamValue> Params) : TooltipBlock;
@@ -24,6 +28,9 @@ public sealed record MateriaBlock(EquatableList<LabelledValue> Materia) : Toolti
 
 public sealed record BarBlock(string Label, string Value, float Fraction) : TooltipBlock;
 
+/// <summary>An icon with a short text beside it, such as the job that repairs an item and its level.</summary>
+public sealed record IconTextBlock(ImagePart Icon, SeText Text) : TooltipBlock;
+
 public sealed record KeyValueBlock(string Key, SeText Value) : TooltipBlock;
 
 public sealed record ParagraphBlock(SeText Text, bool Secondary) : TooltipBlock;
@@ -34,6 +41,9 @@ public sealed record ExtraBlock(SeText Text) : TooltipBlock;
 public sealed record DividerBlock : TooltipBlock;
 
 public sealed record WarningBlock(string Text) : TooltipBlock;
+
+/// <summary>An image the game drew: a game icon, or one part of a UI texture sheet.</summary>
+public readonly record struct ImagePart(string Texture, PartRect Part);
 
 public readonly record struct LabelledValue(string Label, string Value);
 

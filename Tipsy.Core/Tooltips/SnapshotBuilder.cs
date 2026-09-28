@@ -22,7 +22,7 @@ public static class SnapshotBuilder
             mapped.Add(binding.Path);
             var node = byPath[binding.Path];
             if (node.Shown)
-                slots[binding.Slot] = new SlotValue(new SeText(node.Text), node.Texture, node.PartId);
+                slots[binding.Slot] = new SlotValue(new SeText(node.Text), node.Texture, node.PartId, node.Part);
         }
 
         return new TooltipSnapshot(map.Addon, SnapshotStatus.Ok, null, slots, ExtrasOf(nodes, mapped));

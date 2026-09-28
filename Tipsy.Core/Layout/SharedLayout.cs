@@ -22,10 +22,11 @@ public static class SharedLayout
     /// <summary>
     /// Folds the text tooltip the game opens next to an item or action into that tooltip. When it is the same name with
     /// a bracketed key, as in "Interject [`]", the key becomes the header's keybind. When it repeats the name or a header
-    /// line, such as the "Legs" the Character window shows, it adds nothing. Any other text, and any line other plugins
-    /// added to the text tooltip, is kept as an extra line, so hiding the text tooltip never loses what it said.
+    /// line, or is one of the <paramref name="slotLabels"/> the Character window shows for each equipment slot, such as
+    /// "Left Ring", it adds nothing. Any other text, and any line other plugins added to the text tooltip, is kept as an
+    /// extra line, so hiding the text tooltip never loses what it said.
     /// </summary>
-    public static List<TooltipBlock> WithTextTooltip(List<TooltipBlock> blocks, TooltipSnapshot textTooltip)
+    public static List<TooltipBlock> WithTextTooltip(List<TooltipBlock> blocks, TooltipSnapshot textTooltip, IReadOnlyCollection<string> slotLabels)
     {
         if (blocks.Count == 0 || blocks[0] is not HeaderBlock header)
             return blocks;
@@ -37,7 +38,10 @@ public static class SharedLayout
             var plain = SeStringText.Plain(text.Text).Trim();
             var name = Comparable(SeStringText.Plain(header.Name));
             var comparable = Comparable(plain);
-            var repeats = plain.Length == 0 || comparable == name || header.Lines.Any(line => Comparable(SeStringText.Plain(line)) == comparable);
+            var repeats = plain.Length == 0
+                          || comparable == name
+                          || header.Lines.Any(line => Comparable(SeStringText.Plain(line)) == comparable)
+                          || slotLabels.Contains(comparable);
             var key = repeats ? null : KeyAfterName(plain, name);
             if (key is { Length: > 0 })
                 folded = header with { Keybind = key };

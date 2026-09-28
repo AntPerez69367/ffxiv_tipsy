@@ -47,6 +47,22 @@ public class NodeDumpTests
         }
     }
 
+    [Fact]
+    public void ThePartColumnIsReadWhenPresent()
+    {
+        var dump = $"header\nheader\n{NodeDump.ColumnHeader}\n0\t26\tImage\t1\t1\t1\t0\t0\t0\t0\t18\t18\t1\t1\t3\tui/uld/ItemDetailPutIn_hr1.tex\t\t\t36,0,18,18\n";
+
+        var node = Assert.Single(NodeDump.Read(new StringReader(dump)));
+
+        Assert.Equal(new PartRect(36, 0, 18, 18), node.Part);
+    }
+
+    [Fact]
+    public void DumpsWithoutThePartColumnReadAnEmptyPart()
+    {
+        Assert.All(Fixture.Load("gear-grimoire"), node => Assert.Equal(default, node.Part));
+    }
+
     [Theory]
     [InlineData("0\t1\tRes")]
     [InlineData("2\t1\tRes\t0\t1\t1\t0\t0\t0\t0\t10\t10\t1\t1\t0\t\t\t")]

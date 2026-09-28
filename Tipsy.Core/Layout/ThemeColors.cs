@@ -130,18 +130,21 @@ public sealed record ThemeColors(
     }
 
     /// <summary>
-    /// The WCAG contrast ratio of the secondary text against the surface, taking the worse of the surface composited over
-    /// white and over black, since a translucent surface can sit on any part of the game.
+    /// The worst WCAG contrast ratio of the secondary text against the surface over any part of the game. A translucent
+    /// surface's luminance lies between the surface composited over black and over white; when the text's luminance falls
+    /// in that range, some backdrop matches it and the ratio is 1.
     /// </summary>
-    public double SecondaryContrast() =>
-        Math.Min(Ratio(SecondaryText, Rgb.Composite(Surface, SurfaceAlpha, 0xFFFFFF)), Ratio(SecondaryText, Rgb.Composite(Surface, SurfaceAlpha, 0x000000)));
-
-    private static double Ratio(uint foreground, uint background)
+    public double SecondaryContrast()
     {
-        var text = Luminance(foreground);
-        var back = Luminance(background);
-        return (Math.Max(text, back) + 0.05) / (Math.Min(text, back) + 0.05);
+        var text = Luminance(SecondaryText);
+        var overBlack = Luminance(Rgb.Composite(Surface, SurfaceAlpha, 0x000000));
+        var overWhite = Luminance(Rgb.Composite(Surface, SurfaceAlpha, 0xFFFFFF));
+        if (text >= overBlack && text <= overWhite)
+            return 1;
+        return Math.Min(Ratio(text, overBlack), Ratio(text, overWhite));
     }
+
+    private static double Ratio(double first, double second) => (Math.Max(first, second) + 0.05) / (Math.Min(first, second) + 0.05);
 
     private static double Luminance(uint colour)
     {

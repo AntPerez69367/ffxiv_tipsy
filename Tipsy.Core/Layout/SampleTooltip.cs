@@ -17,6 +17,7 @@ public static class SampleTooltip
         new CaptionBlock("MATERIA"),
         new MateriaBlock([new LabelledValue("Savage Might Materia IX", "Determination +12"), new LabelledValue(string.Empty, string.Empty)]),
         new CaptionBlock("CRAFTING & REPAIRS"),
+        new IconTextBlock(new ImagePart("ui/icon/062000/062114_hr1.tex", default), SeText.Utf8("90")),
         new BarBlock("Condition", "100%", 1f),
         new BarBlock("Spiritbond", "42%", 0.42f),
         new KeyValueBlock("Repair Level", SeText.Utf8("Alchemist Lv. 83")),

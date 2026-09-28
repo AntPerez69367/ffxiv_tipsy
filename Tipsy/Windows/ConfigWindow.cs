@@ -14,8 +14,6 @@ public sealed class ConfigWindow : Window
 {
     private const string KofiUrl = "https://ko-fi.com/elserie";
     private const string SwitchThemePopup = "Switch theme?##switchTheme";
-    private const float MaxCursorOffset = 100;
-    private const float MaxRounding = 16;
 
     private static readonly (AnchorPreset Anchor, string Label)[] Anchors =
     [
@@ -180,11 +178,11 @@ public sealed class ConfigWindow : Window
             {
                 var offset = configuration.CursorOffset;
                 Row("Horizontal offset");
-                if (ImGui.SliderFloat("##offsetX", ref offset.X, -MaxCursorOffset, MaxCursorOffset, "%.0f px"))
+                if (ImGui.SliderFloat("##offsetX", ref offset.X, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
                     configuration.CursorOffset = offset;
                 SaveAfterEdit();
                 Row("Vertical offset");
-                if (ImGui.SliderFloat("##offsetY", ref offset.Y, -MaxCursorOffset, MaxCursorOffset, "%.0f px"))
+                if (ImGui.SliderFloat("##offsetY", ref offset.Y, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
                     configuration.CursorOffset = offset;
                 SaveAfterEdit();
             }
@@ -227,7 +225,7 @@ public sealed class ConfigWindow : Window
             var width = configuration.Width;
             var tokens = new LayoutTokens();
             Row("Width");
-            if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px"))
+            if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
                 configuration.Width = width;
             SaveAfterEdit();
             ImGui.EndTable();
@@ -323,13 +321,13 @@ public sealed class ConfigWindow : Window
         else if (token == ThemeToken.Rounding)
         {
             var rounding = theme.NumberOf(token);
-            if (ImGui.SliderFloat("##value", ref rounding, 0, MaxRounding, "%.0f px"))
+            if (ImGui.SliderFloat("##value", ref rounding, 0, Configuration.MaxRounding, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
                 configuration.SetNumber(token, rounding);
         }
         else
         {
             var percent = theme.NumberOf(token) * 100;
-            if (ImGui.SliderFloat("##value", ref percent, 0, 100, "%.0f%%"))
+            if (ImGui.SliderFloat("##value", ref percent, 0, 100, "%.0f%%", ImGuiSliderFlags.AlwaysClamp))
                 configuration.SetNumber(token, percent / 100);
         }
 

@@ -16,11 +16,50 @@ public class ItemTooltipLayoutTests
                 typeof(HeaderBlock), typeof(DividerBlock), typeof(ParamsBlock),
                 typeof(CaptionBlock), typeof(StatTableBlock),
                 typeof(CaptionBlock), typeof(MateriaBlock),
-                typeof(CaptionBlock), typeof(BarBlock), typeof(BarBlock),
+                typeof(CaptionBlock), typeof(IconTextBlock), typeof(BarBlock), typeof(BarBlock),
                 typeof(KeyValueBlock), typeof(KeyValueBlock), typeof(KeyValueBlock), typeof(KeyValueBlock), typeof(ParagraphBlock),
-                typeof(ParagraphBlock), typeof(ParagraphBlock), typeof(ParagraphBlock),
+                typeof(ParagraphBlock), typeof(ParagraphBlock), typeof(ParagraphBlock), typeof(ParagraphBlock),
             ],
             blocks.Select(block => block.GetType()));
+    }
+
+    [Fact]
+    public void TheRepairJobIconAndLevelFollowTheRepairsCaption()
+    {
+        var blocks = Layout("gear-grimoire");
+
+        var caption = blocks.FindIndex(block => block is CaptionBlock { Text: "CRAFTING & REPAIRS" });
+        var job = Assert.IsType<IconTextBlock>(blocks[caption + 1]);
+        Assert.Equal("ui/icon/062000/062114_hr1.tex", job.Icon.Texture);
+        Assert.Equal("90", Fixture.Plain(job.Text));
+    }
+
+    [Fact]
+    public void StorageIconsBecomeHeaderBadges()
+    {
+        var header = Assert.IsType<HeaderBlock>(Layout("gear-compared")[0]);
+
+        Assert.Equal(3, header.Badges.Count);
+        Assert.All(header.Badges, badge => Assert.Equal("ui/uld/ItemDetailPutIn_hr1.tex", badge.Texture));
+    }
+
+    [Fact]
+    public void TheRecipeIconBecomesAHeaderBadge()
+    {
+        var header = Assert.IsType<HeaderBlock>(Layout("card-chimera")[0]);
+
+        Assert.Contains(header.Badges, badge => badge.Texture == "ui/uld/RecipeNoteBook_hr1.tex");
+    }
+
+    [Fact]
+    public void TheControlHintIsTheLastParagraphBeforeTheExtras()
+    {
+        var blocks = Layout("food-baklava");
+
+        var divider = blocks.FindLastIndex(block => block is DividerBlock);
+        var hint = Assert.IsType<ParagraphBlock>(blocks[divider - 1]);
+        Assert.True(hint.Secondary);
+        Assert.StartsWith("Ctrl Key", Fixture.Plain(hint.Text));
     }
 
     [Fact]
