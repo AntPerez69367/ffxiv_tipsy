@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Numerics;
-using System.Text.RegularExpressions;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.ImGuiSeStringRenderer;
@@ -20,7 +18,7 @@ using Tipsy.Game;
 namespace Tipsy.Windows;
 
 /// <summary>The styled tooltip: a fixed-width, input-free window pinned to an anchor, drawn from the reader's snapshot.</summary>
-public sealed unsafe partial class TooltipOverlay : Window
+public sealed unsafe class TooltipOverlay : Window
 {
     private const string WidestValue = "+9999";
     private const string FlagSeparator = "   ";
@@ -151,9 +149,9 @@ public sealed unsafe partial class TooltipOverlay : Window
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(tokens.InlineGap, 0));
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Vector2.Zero);
         pushedStyles = 5;
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, Colour(theme.Surface, theme.SurfaceAlpha));
-        ImGui.PushStyleColor(ImGuiCol.Border, Colour(theme.Border));
-        ImGui.PushStyleColor(ImGuiCol.Text, Colour(theme.PrimaryText));
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, Rgb.ToVector4(theme.Surface, theme.SurfaceAlpha));
+        ImGui.PushStyleColor(ImGuiCol.Border, Rgb.ToVector4(theme.Border));
+        ImGui.PushStyleColor(ImGuiCol.Text, Rgb.ToVector4(theme.PrimaryText));
         pushedColors = 3;
     }
 
@@ -169,7 +167,9 @@ public sealed unsafe partial class TooltipOverlay : Window
         TooltipBlock? previous = null;
         foreach (var block in shown)
         {
-            Gap(previous, block);
+            var gap = BlockGap.Before(previous, block, tokens);
+            if (gap > 0)
+                ImGui.Dummy(new Vector2(0, gap));
             DrawBlock(block);
             previous = block;
         }
@@ -229,24 +229,6 @@ public sealed unsafe partial class TooltipOverlay : Window
     }
 #endif
 
-    private void Gap(TooltipBlock? previous, TooltipBlock block)
-    {
-        if (previous is null)
-            return;
-        var gap = block switch
-        {
-            DividerBlock => 0,
-            _ when previous is DividerBlock => 0,
-            _ when previous is CaptionBlock => tokens.CaptionGap,
-            CaptionBlock or ParamsBlock => tokens.SectionGap,
-            ParagraphBlock when previous is not ParagraphBlock => tokens.SectionGap,
-            ExtraBlock when previous is not ExtraBlock => tokens.SectionGap,
-            _ => tokens.RowGap,
-        };
-        if (gap > 0)
-            ImGui.Dummy(new Vector2(0, gap));
-    }
-
     private void DrawBlock(TooltipBlock block)
     {
         switch (block)
@@ -262,7 +244,7 @@ public sealed unsafe partial class TooltipOverlay : Window
                 break;
             case CaptionBlock caption:
                 using (fonts.Small.Push())
-                    ImGui.TextColored(Colour(theme.Accent), caption.Text);
+                    ImGui.TextColored(Rgb.ToVector4(theme.Accent), caption.Text);
                 break;
             case StatTableBlock table:
                 DrawStats(table);
@@ -288,7 +270,7 @@ public sealed unsafe partial class TooltipOverlay : Window
                 using (fonts.Small.Push())
                 {
                     ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + tokens.WrapWidth);
-                    ImGui.TextColored(Colour(theme.SecondaryText), warning.Text);
+                    ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), warning.Text);
                     ImGui.PopTextWrapPos();
                 }
 
@@ -298,7 +280,7 @@ public sealed unsafe partial class TooltipOverlay : Window
 
     private void DrawHeader(HeaderBlock header)
     {
-        if (header.IconTexture is { } texture && IconOf(texture) is { } icon)
+        if (header.IconTexture is { } texture && GameIcon.FromTexture(texture) is { } icon)
         {
             var wrap = textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty();
             ImGui.Image(wrap.Handle, new Vector2(tokens.IconSize));
@@ -336,9 +318,9 @@ public sealed unsafe partial class TooltipOverlay : Window
         var right = ImGui.GetWindowPos().X + tokens.Padding + tokens.WrapWidth;
         var min = new Vector2(right - size.X, ImGui.GetCursorScreenPos().Y + ((nameLineHeight - size.Y) / 2));
         var drawList = ImGui.GetWindowDrawList();
-        drawList.AddRectFilled(min, min + size, ImGui.GetColorU32(Colour(theme.Border, 0.6f)), tokens.BarRounding);
-        drawList.AddRect(min, min + size, ImGui.GetColorU32(Colour(theme.Border)), tokens.BarRounding);
-        drawList.AddText(min + padding, ImGui.GetColorU32(Colour(theme.PrimaryText)), keybind);
+        drawList.AddRectFilled(min, min + size, ImGui.GetColorU32(Rgb.ToVector4(theme.Border, 0.6f)), tokens.BarRounding);
+        drawList.AddRect(min, min + size, ImGui.GetColorU32(Rgb.ToVector4(theme.Border)), tokens.BarRounding);
+        drawList.AddText(min + padding, ImGui.GetColorU32(Rgb.ToVector4(theme.PrimaryText)), keybind);
         return size.X;
     }
 
@@ -351,7 +333,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         using (fonts.Title.Push())
         {
             var size = ImGui.CalcTextSize(cooldown);
-            drawList.AddText(min + ((max - min - size) / 2), ImGui.GetColorU32(Colour(theme.PrimaryText)), cooldown);
+            drawList.AddText(min + ((max - min - size) / 2), ImGui.GetColorU32(Rgb.ToVector4(theme.PrimaryText)), cooldown);
         }
     }
 
@@ -359,7 +341,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     {
         ImGui.Dummy(new Vector2(0, tokens.DividerMargin));
         var start = ImGui.GetCursorScreenPos();
-        ImGui.GetWindowDrawList().AddLine(start, start + new Vector2(tokens.WrapWidth, 0), ImGui.GetColorU32(Colour(theme.Divider, theme.DividerAlpha)));
+        ImGui.GetWindowDrawList().AddLine(start, start + new Vector2(tokens.WrapWidth, 0), ImGui.GetColorU32(Rgb.ToVector4(theme.Divider, theme.DividerAlpha)));
         ImGui.Dummy(new Vector2(0, tokens.DividerMargin));
     }
 
@@ -372,7 +354,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         {
             ImGui.TableNextColumn();
             using (fonts.Small.Push())
-                ImGui.TextColored(Colour(theme.SecondaryText), parameter.Label);
+                ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), parameter.Label);
             float valueHeight;
             using (fonts.Title.Push())
             {
@@ -386,7 +368,7 @@ public sealed unsafe partial class TooltipOverlay : Window
                 using (fonts.Body.Push())
                 {
                     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + valueHeight - ImGui.GetTextLineHeight());
-                    ImGui.TextColored(Colour(parameter.Delta.Contains('-') ? theme.Worse : theme.Better), parameter.Delta);
+                    ImGui.TextColored(Rgb.ToVector4(parameter.Delta.Contains('-') ? theme.Worse : theme.Better), parameter.Delta);
                 }
             }
         }
@@ -415,7 +397,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             ImGui.TableNextColumn();
             if (i % 2 == 1)
                 ImGui.SetCursorPosX(ImGui.GetCursorPosX() + gap);
-            ImGui.TextColored(Colour(theme.SecondaryText), Ellipsize(stat.Label, labelWidth));
+            ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), Ellipsize(stat.Label, labelWidth));
             ImGui.TableNextColumn();
             ImGui.SetCursorPosX(ImGui.GetCursorPosX() + valueWidth - ImGui.CalcTextSize(stat.Value).X);
             ImGui.TextUnformatted(stat.Value);
@@ -440,7 +422,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             }
             else
             {
-                ImGui.GetWindowDrawList().AddCircle(ImGui.GetCursorScreenPos() + (size / 2), (size.X / 2) - 1, ImGui.GetColorU32(Colour(theme.Divider, 1f)));
+                ImGui.GetWindowDrawList().AddCircle(ImGui.GetCursorScreenPos() + (size / 2), (size.X / 2) - 1, ImGui.GetColorU32(Rgb.ToVector4(theme.Divider, 1f)));
                 ImGui.Dummy(size);
             }
             ImGui.SameLine(0, tokens.InlineGap);
@@ -450,7 +432,7 @@ public sealed unsafe partial class TooltipOverlay : Window
             if (effect.Length == 0)
                 continue;
             ImGui.SameLine(left + tokens.WrapWidth - ImGui.CalcTextSize(effect).X);
-            ImGui.TextColored(Colour(theme.SecondaryText), effect);
+            ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), effect);
         }
     }
 
@@ -458,7 +440,7 @@ public sealed unsafe partial class TooltipOverlay : Window
     {
         using (fonts.Body.Push())
         {
-            ImGui.TextColored(Colour(theme.SecondaryText), bar.Label);
+            ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), bar.Label);
             ImGui.SameLine(ImGui.GetCursorPosX() + tokens.WrapWidth - ImGui.CalcTextSize(bar.Value).X);
             ImGui.TextUnformatted(bar.Value);
         }
@@ -468,9 +450,9 @@ public sealed unsafe partial class TooltipOverlay : Window
         ImGui.Dummy(new Vector2(tokens.WrapWidth, lineHeight));
         var top = start + new Vector2(0, (lineHeight - tokens.BarHeight) / 2);
         var drawList = ImGui.GetWindowDrawList();
-        drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth, tokens.BarHeight), ImGui.GetColorU32(Colour(theme.Divider, theme.DividerAlpha)), tokens.BarRounding);
+        drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth, tokens.BarHeight), ImGui.GetColorU32(Rgb.ToVector4(theme.Divider, theme.DividerAlpha)), tokens.BarRounding);
         if (bar.Fraction > 0)
-            drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth * bar.Fraction, tokens.BarHeight), ImGui.GetColorU32(Colour(theme.Accent)), tokens.BarRounding);
+            drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth * bar.Fraction, tokens.BarHeight), ImGui.GetColorU32(Rgb.ToVector4(theme.Accent)), tokens.BarRounding);
     }
 
     private void DrawKeyValue(KeyValueBlock row)
@@ -478,7 +460,7 @@ public sealed unsafe partial class TooltipOverlay : Window
         using var font = fonts.Body.Push();
         var keyWidth = tokens.WrapWidth * 0.4f;
         var left = ImGui.GetCursorPosX();
-        ImGui.TextColored(Colour(theme.SecondaryText), Ellipsize(row.Key, keyWidth - tokens.InlineGap));
+        ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), Ellipsize(row.Key, keyWidth - tokens.InlineGap));
         ImGui.SameLine(left + keyWidth);
         SeString(row.Value, tokens.WrapWidth - keyWidth, theme.PrimaryText);
     }
@@ -488,8 +470,8 @@ public sealed unsafe partial class TooltipOverlay : Window
         var min = ImGui.GetWindowPos();
         var max = min + ImGui.GetWindowSize();
         var bottom = max.Y - tokens.Padding;
-        var surface = ImGui.GetColorU32(Colour(theme.Surface, theme.SurfaceAlpha));
-        var clear = ImGui.GetColorU32(Colour(theme.Surface, 0));
+        var surface = ImGui.GetColorU32(Rgb.ToVector4(theme.Surface, theme.SurfaceAlpha));
+        var clear = ImGui.GetColorU32(Rgb.ToVector4(theme.Surface, 0));
         ImGui.GetWindowDrawList().AddRectFilledMultiColor(new Vector2(min.X, bottom - tokens.OverflowFade), new Vector2(max.X, bottom), clear, clear, surface, surface);
     }
 
@@ -516,20 +498,6 @@ public sealed unsafe partial class TooltipOverlay : Window
 
     private static void SeString(SeText text, float wrapWidth, uint colour)
     {
-        ImGuiHelpers.SeStringWrapped(text, new SeStringDrawParams { WrapWidth = wrapWidth, Color = ImGui.GetColorU32(Colour(colour)) });
+        ImGuiHelpers.SeStringWrapped(text, new SeStringDrawParams { WrapWidth = wrapWidth, Color = ImGui.GetColorU32(Rgb.ToVector4(colour)) });
     }
-
-    private static (uint Id, bool HighQuality)? IconOf(string texture)
-    {
-        var match = IconFileName().Match(texture);
-        if (!match.Success)
-            return null;
-        return (uint.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), texture.Contains("/hq/", StringComparison.Ordinal));
-    }
-
-    private static Vector4 Colour(uint rgb, float alpha = 1f) =>
-        new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, alpha);
-
-    [GeneratedRegex(@"(\d{6})(?:_hr1)?\.tex$")]
-    private static partial Regex IconFileName();
 }

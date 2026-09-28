@@ -320,9 +320,9 @@ public sealed class ConfigWindow : Window
         Row(label);
         if (ThemeColors.IsColour(token))
         {
-            var colour = ToVector(theme.ColourOf(token));
+            var colour = Rgb.ToVector3(theme.ColourOf(token));
             if (ImGui.ColorEdit3("##value", ref colour, ImGuiColorEditFlags.DisplayHex))
-                configuration.ColourOverrides[token] = FromVector(colour);
+                configuration.ColourOverrides[token] = Rgb.FromVector3(colour);
         }
         else if (token == ThemeToken.Rounding)
         {
@@ -385,9 +385,4 @@ public sealed class ConfigWindow : Window
         if (ImGui.IsItemDeactivatedAfterEdit())
             configuration.Save();
     }
-
-    private static Vector3 ToVector(uint rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f);
-
-    private static uint FromVector(Vector3 colour) =>
-        ((uint)MathF.Round(colour.X * 255) << 16) | ((uint)MathF.Round(colour.Y * 255) << 8) | (uint)MathF.Round(colour.Z * 255);
 }
