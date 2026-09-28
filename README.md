@@ -48,6 +48,16 @@ Tipsy hides the game's item, action and text tooltips and draws its own in one w
 | `/tipsy` | Opens the settings window. |
 | `/tipsy toggle` | Switches between Tipsy's tooltips and the game's own. |
 
+## AI disclosure
+
+Tipsy was built with AI assistance at the **Copilot** level of
+[Dalamud's AI policy](https://dalamud.dev/plugin-publishing/ai-policy).
+Claude (Anthropic) wrote most of the code. I planned the features, made the
+design decisions, reviewed every change and tested it in game.
+
+The icon is AI-generated. If you'd like to donate a hand-drawn icon, please
+open an issue; I'd be glad to replace it.
+
 ## Support
 
 If Tipsy is useful to you, you can support its development on [Ko-fi](https://ko-fi.com/elserie).
