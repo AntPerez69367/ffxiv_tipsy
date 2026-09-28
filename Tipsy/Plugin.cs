@@ -34,8 +34,6 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TooltipReader[] readers;
     private readonly NativeTooltipHider[] hiders;
     private readonly TooltipFonts fonts;
-    private readonly ItemIcons itemIcons;
-    private readonly TooltipOverlay overlay;
     private readonly ConfigWindow configWindow;
 #if TIPSY_PROBE
     private readonly TooltipProbe[] probes;
@@ -60,8 +58,8 @@ public sealed class Plugin : IDalamudPlugin
         var selector = new TooltipSelector(sources, textSource, GameGui);
         hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, selector, configuration.ReplaceTooltips))];
         fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
-        itemIcons = new ItemIcons(DataManager, Log);
-        overlay = new TooltipOverlay(selector, KeyState, TextureProvider, fonts, itemIcons, configuration);
+        var renderer = new TooltipBlockRenderer(TextureProvider, fonts, new ItemIcons(DataManager, Log));
+        var overlay = new TooltipOverlay(selector, KeyState, renderer, configuration);
         configWindow = new ConfigWindow(configuration, overlay, KeyState, SetReplaceTooltips);
         windowSystem.AddWindow(overlay);
         windowSystem.AddWindow(configWindow);
@@ -75,7 +73,7 @@ public sealed class Plugin : IDalamudPlugin
             new TooltipProbe("Tooltip", () => "text", AddonLifecycle, GameGui, Log, directory, gameVersion),
         ];
         discovery = new AddonDiscovery(directory);
-        probeWindow = new ProbeWindow(probes, readers, discovery, overlay, DataManager);
+        probeWindow = new ProbeWindow(probes, readers, discovery, renderer, DataManager);
         windowSystem.AddWindow(probeWindow);
 #endif
 
