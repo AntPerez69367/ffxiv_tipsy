@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Configuration;
 using Dalamud.Game.ClientState.Keys;
@@ -12,6 +13,9 @@ namespace Tipsy;
 [Serializable]
 public sealed class Configuration : IPluginConfiguration
 {
+    public const float MaxCursorOffset = 100;
+    public const float MaxRounding = 16;
+
     [JsonProperty(nameof(ColourOverrides))]
     private Dictionary<ThemeToken, uint> colourOverrides = [];
 
@@ -71,6 +75,9 @@ public sealed class Configuration : IPluginConfiguration
         if (!Enum.IsDefined(configuration.HideKey))
             configuration.HideKey = defaults.HideKey;
         configuration.Width = Math.Clamp(configuration.Width, tokens.MinWidth, tokens.MaxWidth);
+        configuration.CursorOffset = Vector2.Clamp(configuration.CursorOffset, new Vector2(-MaxCursorOffset), new Vector2(MaxCursorOffset));
+        foreach (var (token, number) in configuration.numberOverrides.ToList())
+            configuration.numberOverrides[token] = Math.Clamp(number, 0, token == ThemeToken.Rounding ? MaxRounding : 1);
         return configuration;
     }
 
