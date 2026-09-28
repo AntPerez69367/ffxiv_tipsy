@@ -8,6 +8,10 @@ public static class SharedLayout
 {
     public const string MismatchWarning = "Tipsy doesn't recognize this tooltip's layout yet, so it's shown as plain text.";
 
+    /// <summary>The visible text of <paramref name="slot"/>, or empty when that slot was not shown.</summary>
+    public static string Plain(IReadOnlyDictionary<string, SlotValue> slots, string slot) =>
+        slots.TryGetValue(slot, out var value) ? SeStringText.Plain(value.Text) : string.Empty;
+
     public static List<TooltipBlock> Fallback(TooltipSnapshot snapshot)
     {
         List<TooltipBlock> blocks = [new WarningBlock(MismatchWarning)];

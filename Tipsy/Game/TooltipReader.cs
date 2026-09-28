@@ -62,7 +62,6 @@ internal sealed unsafe class TooltipReader : IDisposable
 
     private void Rebuild(AtkUnitBase* unit, int hash)
     {
-        Current = null;
         Current = SnapshotBuilder.Build(map, NodeWalker.Collect(unit));
         dirty = false;
         lastHash = hash;

@@ -10,7 +10,8 @@ namespace Tipsy.Game;
 /// <summary>
 /// Decides which open tooltip Tipsy draws and with what blocks: the first open source, in priority order, whose layout
 /// is not empty, with a text tooltip open alongside it folded in. The overlay draws from it and the hiders ask it, so
-/// a native tooltip is only ever hidden when Tipsy draws its content.
+/// a native tooltip is only ever hidden when Tipsy draws its content. Each caller runs <see cref="Update"/> first, after
+/// the readers it depends on are current.
 /// </summary>
 internal sealed unsafe class TooltipSelector
 {
@@ -53,11 +54,8 @@ internal sealed unsafe class TooltipSelector
         }
     }
 
-    public bool Draws(string addon)
-    {
-        Update();
-        return Drawn?.Reader.Addon == addon || (FoldsText && addon == text.Reader.Addon);
-    }
+    /// <summary>Whether the selection from the last <see cref="Update"/> draws <paramref name="addon"/>'s content.</summary>
+    public bool Draws(string addon) => Drawn?.Reader.Addon == addon || (FoldsText && addon == text.Reader.Addon);
 
     private List<TooltipBlock> LayOut(TooltipSource source, TooltipSnapshot main, TooltipSnapshot? folded)
     {

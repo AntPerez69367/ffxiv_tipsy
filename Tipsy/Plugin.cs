@@ -45,23 +45,22 @@ public sealed class Plugin : IDalamudPlugin
 
     public Plugin()
     {
-        configuration = Configuration.Load(PluginInterface);
-        readers =
-        [
-            new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map),
-            new TooltipReader(AddonLifecycle, Log, ActionDetailMap.Map),
-            new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map),
-        ];
+        configuration = Configuration.Load();
+        var itemReader = new TooltipReader(AddonLifecycle, Log, ItemDetailMap.Map);
+        var actionReader = new TooltipReader(AddonLifecycle, Log, ActionDetailMap.Map);
+        var textReader = new TooltipReader(AddonLifecycle, Log, TextTooltipMap.Map);
+        readers = [itemReader, actionReader, textReader];
+        var textSource = new TooltipSource(textReader, TextTooltipLayout.Build, true);
         TooltipSource[] sources =
         [
-            new(readers[0], ItemTooltipLayout.Build, false),
-            new(readers[1], ActionTooltipLayout.Build, false),
-            new(readers[2], TextTooltipLayout.Build, true),
+            new(itemReader, ItemTooltipLayout.Build, false),
+            new(actionReader, ActionTooltipLayout.Build, false),
+            textSource,
         ];
-        var selector = new TooltipSelector(sources, sources[2], GameGui);
+        var selector = new TooltipSelector(sources, textSource, GameGui);
         hiders = [.. readers.Select(reader => new NativeTooltipHider(AddonLifecycle, GameGui, reader, selector, configuration.ReplaceTooltips))];
         fonts = new TooltipFonts(PluginInterface.UiBuilder.FontAtlas);
-        itemIcons = new ItemIcons(DataManager);
+        itemIcons = new ItemIcons(DataManager, Log);
         overlay = new TooltipOverlay(selector, KeyState, TextureProvider, fonts, itemIcons, configuration);
         configWindow = new ConfigWindow(configuration, overlay, KeyState, SetReplaceTooltips);
         windowSystem.AddWindow(overlay);

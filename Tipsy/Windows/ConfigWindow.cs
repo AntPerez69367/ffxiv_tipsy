@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin.Services;
@@ -157,7 +158,7 @@ public sealed class ConfigWindow : Window
         if (BeginRows("position", false))
         {
             Row("Position");
-            var current = Array.Find(Anchors, entry => entry.Anchor == configuration.Anchor).Label ?? Anchors[0].Label;
+            var current = Anchors.First(entry => entry.Anchor == configuration.Anchor).Label;
             if (ImGui.BeginCombo("##anchor", current))
             {
                 foreach (var (anchor, label) in Anchors)
