@@ -34,7 +34,7 @@ public static class ItemTooltipLayout
                 SharedLayout.Plain(slots, ItemDetailMap.ParamDelta(i)).Trim()))
             .ToList();
         if (parameters.Count > 0)
-            blocks.Add(new ParamsBlock(parameters));
+            blocks.Add(new ParamsBlock([.. parameters]));
 
         if (slots.TryGetValue(ItemDetailMap.Effects, out var effects))
         {
@@ -50,7 +50,7 @@ public static class ItemTooltipLayout
         if (stats.Count > 0)
         {
             Caption(blocks, slots, ItemDetailMap.BonusesHeader);
-            blocks.Add(new StatTableBlock(stats));
+            blocks.Add(new StatTableBlock([.. stats]));
         }
 
         var materia = Enumerable.Range(0, ItemDetailMap.MateriaSlots)
@@ -62,7 +62,7 @@ public static class ItemTooltipLayout
         if (materia.Count > 0)
         {
             Caption(blocks, slots, ItemDetailMap.MateriaHeader);
-            blocks.Add(new MateriaBlock(materia));
+            blocks.Add(new MateriaBlock([.. materia]));
         }
 
         if (slots.ContainsKey(ItemDetailMap.RepairsHeader))
@@ -140,13 +140,14 @@ public static class ItemTooltipLayout
             blocks.Add(new ParagraphBlock(value.Text, secondary));
     }
 
-    private static List<byte[]> Texts(IReadOnlyDictionary<string, SlotValue> slots, params string[] wanted) =>
-        wanted
+    private static EquatableList<SeText> Texts(IReadOnlyDictionary<string, SlotValue> slots, params string[] wanted) =>
+    [
+        .. wanted
             .Select(slots.GetValueOrDefault)
             .OfType<SlotValue>()
             .Where(HasText)
-            .Select(value => value.Text)
-            .ToList();
+            .Select(value => value.Text),
+    ];
 
     private static bool HasText(SlotValue value) => !string.IsNullOrWhiteSpace(SeStringText.Plain(value.Text));
 }

@@ -1,4 +1,5 @@
 #if TIPSY_PROBE
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -165,7 +166,7 @@ public sealed class ProbeWindow : Window
         ImGui.TextWrapped(content);
     }
 
-    private static string Plain(byte[] text) => SeString.Parse(text).TextValue;
+    private static string Plain(ReadOnlySpan<byte> text) => SeString.Parse(text).TextValue;
 
     private void DrawDumps()
     {

@@ -1,4 +1,4 @@
-using System.Text;
+using Tipsy.Core.Text;
 
 namespace Tipsy.Core.Layout;
 
@@ -9,7 +9,7 @@ public static class SampleTooltip
 
     public static readonly IReadOnlyList<TooltipBlock> Blocks =
     [
-        new HeaderBlock(IconTexture, string.Empty, Utf8("Sample Grimoire"), [Utf8("Arcanist's Grimoire"), Utf8("Item Level 660"), Utf8("Lv. 93"), Utf8("ACN SMN")], [Utf8("Unique"), Utf8("Untradable")]),
+        new HeaderBlock(IconTexture, string.Empty, SeText.Utf8("Sample Grimoire"), [SeText.Utf8("Arcanist's Grimoire"), SeText.Utf8("Item Level 660"), SeText.Utf8("Lv. 93"), SeText.Utf8("ACN SMN")], [SeText.Utf8("Unique"), SeText.Utf8("Untradable")]),
         new DividerBlock(),
         new ParamsBlock([new ParamValue("Magic Damage", "131", "(+4)"), new ParamValue("Auto-attack", "136.24", string.Empty), new ParamValue("Delay", "3.12", string.Empty)]),
         new CaptionBlock("BONUSES"),
@@ -19,12 +19,10 @@ public static class SampleTooltip
         new CaptionBlock("CRAFTING & REPAIRS"),
         new BarBlock("Condition", "100%", 1f),
         new BarBlock("Spiritbond", "42%", 0.42f),
-        new KeyValueBlock("Repair Level", Utf8("Alchemist Lv. 83")),
-        new ParagraphBlock(Utf8("Preview of your settings."), false),
-        new ParagraphBlock(Utf8("Sells for 1,329 gil"), true),
+        new KeyValueBlock("Repair Level", SeText.Utf8("Alchemist Lv. 83")),
+        new ParagraphBlock(SeText.Utf8("Preview of your settings."), false),
+        new ParagraphBlock(SeText.Utf8("Sells for 1,329 gil"), true),
         new DividerBlock(),
-        new ExtraBlock(Utf8("Lines other plugins add appear here.")),
+        new ExtraBlock(SeText.Utf8("Lines other plugins add appear here.")),
     ];
-
-    private static byte[] Utf8(string text) => Encoding.UTF8.GetBytes(text);
 }

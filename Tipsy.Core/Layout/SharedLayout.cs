@@ -31,7 +31,7 @@ public static class SharedLayout
             return blocks;
 
         var folded = header;
-        List<byte[]> extras = [];
+        List<SeText> extras = [];
         if (textTooltip.Slots.TryGetValue(TextTooltipMap.Text, out var text))
         {
             var plain = SeStringText.Plain(text.Text).Trim();

@@ -38,8 +38,9 @@ public static class SeStringText
     /// Returns the SeString with its line-break payloads replaced by a space, keeping every other payload, so text the
     /// game broke for its own tooltip width can wrap to Tipsy's. Malformed payloads are copied as they are.
     /// </summary>
-    public static byte[] SingleLine(byte[] bytes)
+    public static SeText SingleLine(SeText text)
     {
+        var bytes = text.Bytes;
         var result = new List<byte>(bytes.Length);
         var i = 0;
         while (i < bytes.Length)
@@ -65,7 +66,7 @@ public static class SeStringText
                 result.Add(Space);
         }
 
-        return result.ToArray();
+        return new SeText(result.ToArray());
     }
 
     private static bool TryReadLength(ReadOnlySpan<byte> bytes, ref int i, out uint value)

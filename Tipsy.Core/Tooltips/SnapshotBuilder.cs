@@ -1,4 +1,5 @@
 using Tipsy.Core.Nodes;
+using Tipsy.Core.Text;
 
 namespace Tipsy.Core.Tooltips;
 
@@ -21,7 +22,7 @@ public static class SnapshotBuilder
             mapped.Add(binding.Path);
             var node = byPath[binding.Path];
             if (node.Shown)
-                slots[binding.Slot] = new SlotValue(node.Text, node.Texture, node.PartId);
+                slots[binding.Slot] = new SlotValue(new SeText(node.Text), node.Texture, node.PartId);
         }
 
         return new TooltipSnapshot(map.Addon, SnapshotStatus.Ok, null, slots, ExtrasOf(nodes, mapped));
@@ -50,6 +51,6 @@ public static class SnapshotBuilder
                            && !mapped.Contains(node.Path))
             .OrderBy(node => node.ScreenY)
             .ThenBy(node => node.ScreenX)
-            .Select(node => new ExtraLine(node.Path, node.Text, node.ScreenX, node.ScreenY))
+            .Select(node => new ExtraLine(node.Path, new SeText(node.Text), node.ScreenX, node.ScreenY))
             .ToList();
 }

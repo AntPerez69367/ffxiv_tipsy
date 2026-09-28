@@ -66,7 +66,7 @@ public class ItemDetailReplayTests
         var snapshot = Build("hq-max-potion");
 
         var name = snapshot.Slots[ItemDetailMap.Name].Text;
-        Assert.Equal(0x02, name[0]);
+        Assert.Equal(0x02, name.Bytes[0]);
         Assert.EndsWith("Max-Potion ", Text(snapshot, ItemDetailMap.Name));
     }
 
