@@ -1,3 +1,4 @@
+using Tipsy.Core.Nodes;
 using Tipsy.Core.Text;
 
 namespace Tipsy.Core.Tooltips;
@@ -9,7 +10,7 @@ public enum SnapshotStatus
 }
 
 /// <summary>A shown slot's content: the raw SeString bytes for text nodes, the texture path and part for image nodes.</summary>
-public sealed record SlotValue(SeText Text, string Texture, int PartId);
+public sealed record SlotValue(SeText Text, string Texture, int PartId, PartRect Part);
 
 /// <summary>A shown text node the map does not know, with where the game drew it.</summary>
 public sealed record ExtraLine(string Path, SeText Text, float ScreenX, float ScreenY);

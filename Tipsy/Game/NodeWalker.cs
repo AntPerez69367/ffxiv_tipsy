@@ -54,13 +54,14 @@ internal static unsafe class NodeWalker
             var isComponent = (int)node->Type >= ComponentNodeType;
             var partId = 0;
             var texture = string.Empty;
+            PartRect part = default;
             var text = Array.Empty<byte>();
             switch (node->Type)
             {
                 case NodeType.Image:
                     var image = node->GetAsAtkImageNode();
                     partId = image->PartId;
-                    texture = TexturePath(image);
+                    (texture, part) = ImageOf(image);
                     break;
                 case NodeType.Text:
                     text = node->GetAsAtkTextNode()->NodeText.AsSpan().ToArray();
@@ -86,7 +87,8 @@ internal static unsafe class NodeWalker
                 node->ScaleY,
                 partId,
                 texture,
-                text));
+                text,
+                part));
 
             if (!isComponent || node->GetAsAtkComponentNode()->Component == null)
                 continue;
@@ -105,10 +107,8 @@ internal static unsafe class NodeWalker
                 continue;
             hash.Add(node->NodeId);
             if (node != root)
-                hash.Add(node->NodeFlags & NodeFlags.Visible);
-            if (node->Type == NodeType.Text)
             {
-                hash.AddBytes(node->GetAsAtkTextNode()->NodeText.AsSpan());
+                hash.Add(node->NodeFlags & NodeFlags.Visible);
                 hash.Add(node->X);
                 hash.Add(node->Y);
             }
@@ -116,22 +116,25 @@ internal static unsafe class NodeWalker
             hash.Add(node->Width > 0 && node->Height > 0);
             if (node->Type == NodeType.Image)
                 hash.Add(node->GetAsAtkImageNode()->PartId);
+            if (node->Type == NodeType.Text)
+                hash.AddBytes(node->GetAsAtkTextNode()->NodeText.AsSpan());
             if ((int)node->Type >= ComponentNodeType && node->GetAsAtkComponentNode()->Component != null)
                 Hash(&node->GetAsAtkComponentNode()->Component->UldManager, root, ref hash);
         }
     }
 
-    private static string TexturePath(AtkImageNode* image)
+    private static (string Texture, PartRect Part) ImageOf(AtkImageNode* image)
     {
         var parts = image->PartsList;
         if (parts == null || image->PartId >= parts->PartCount)
-            return string.Empty;
-        var asset = parts->Parts[image->PartId].UldAsset;
-        if (asset == null)
-            return string.Empty;
-        var texture = &asset->AtkTexture;
+            return (string.Empty, default);
+        var part = &parts->Parts[image->PartId];
+        var rect = new PartRect(part->U, part->V, part->Width, part->Height);
+        if (part->UldAsset == null)
+            return (string.Empty, rect);
+        var texture = &part->UldAsset->AtkTexture;
         if (texture->TextureType != TextureType.Resource || texture->Resource == null || texture->Resource->TexFileResourceHandle == null)
-            return string.Empty;
-        return texture->Resource->TexFileResourceHandle->FileName.ToString();
+            return (string.Empty, rect);
+        return (texture->Resource->TexFileResourceHandle->FileName.ToString(), rect);
     }
 }

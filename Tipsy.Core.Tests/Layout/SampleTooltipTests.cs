@@ -11,7 +11,7 @@ public class SampleTooltipTests
         var kinds = SampleTooltip.Blocks.Select(block => block.GetType()).ToHashSet();
 
         Assert.Superset(
-            new HashSet<Type> { typeof(HeaderBlock), typeof(DividerBlock), typeof(ParamsBlock), typeof(CaptionBlock), typeof(StatTableBlock), typeof(MateriaBlock), typeof(BarBlock), typeof(KeyValueBlock), typeof(ParagraphBlock) },
+            new HashSet<Type> { typeof(HeaderBlock), typeof(DividerBlock), typeof(ParamsBlock), typeof(CaptionBlock), typeof(StatTableBlock), typeof(MateriaBlock), typeof(IconTextBlock), typeof(BarBlock), typeof(KeyValueBlock), typeof(ParagraphBlock) },
             kinds);
     }
 }

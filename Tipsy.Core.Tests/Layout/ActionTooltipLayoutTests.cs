@@ -138,7 +138,7 @@ public class ActionTooltipLayoutTests
     }
 
     private static TooltipSnapshot TextSnapshot(string text) =>
-        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(SeText.Utf8(text), string.Empty, 0) }, []);
+        new(TextTooltipMap.Addon, SnapshotStatus.Ok, null, new Dictionary<string, SlotValue> { [TextTooltipMap.Text] = new(SeText.Utf8(text), string.Empty, 0, default) }, []);
 
     private static TooltipSnapshot Snapshot(string fixture) => SnapshotBuilder.Build(ActionDetailMap.Map, Fixture.Load(fixture));
 

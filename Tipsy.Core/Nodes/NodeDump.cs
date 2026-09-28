@@ -4,15 +4,17 @@ namespace Tipsy.Core.Nodes;
 
 /// <summary>
 /// Reads and writes the probe's tab-separated node dumps: two header lines, a column header, then one row per
-/// node in tree order with each component's children directly after it. The last column is a readable copy of
-/// the text and is ignored when reading; the hex column holds the exact bytes.
+/// node in tree order with each component's children directly after it. The text column is a readable copy of the
+/// text and is ignored when reading; the hex column holds the exact bytes. The part column, "u,v,width,height", is
+/// last and missing from dumps recorded before it was added.
 /// </summary>
 public static class NodeDump
 {
-    public const string ColumnHeader = "depth\tid\ttype\tparent\tvisible\tshown\tx\ty\tscreenX\tscreenY\twidth\theight\tscaleX\tscaleY\tpartId\ttexture\ttextHex\ttext";
+    public const string ColumnHeader = "depth\tid\ttype\tparent\tvisible\tshown\tx\ty\tscreenX\tscreenY\twidth\theight\tscaleX\tscaleY\tpartId\ttexture\ttextHex\ttext\tpart";
 
     private const int HeaderLines = 3;
     private const int Columns = 18;
+    private const int PartColumn = 18;
     private const string ComponentPrefix = "Component";
 
     public static List<NodeRecord> Read(TextReader input)
@@ -59,7 +61,8 @@ public static class NodeDump
                 Number(cells[13]),
                 int.Parse(cells[14], CultureInfo.InvariantCulture),
                 cells[15],
-                Convert.FromHexString(cells[16])));
+                Convert.FromHexString(cells[16]),
+                cells.Length > PartColumn ? Part(cells[PartColumn]) : default));
         }
 
         return records;
@@ -88,12 +91,21 @@ public static class NodeDump
                 node.PartId.ToString(CultureInfo.InvariantCulture),
                 node.Texture,
                 Convert.ToHexString(node.Text),
-                text));
+                text,
+                string.Join(',', node.Part.U, node.Part.V, node.Part.Width, node.Part.Height)));
         }
     }
 
     public static string PathOf(IReadOnlyList<uint> components, uint nodeId) =>
         components.Count == 0 ? nodeId.ToString(CultureInfo.InvariantCulture) : $"{string.Join('/', components)}/{nodeId}";
+
+    private static PartRect Part(string cell)
+    {
+        var values = cell.Split(',').Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray();
+        if (values.Length != 4)
+            throw new FormatException($"Part \"{cell}\" is not u,v,width,height.");
+        return new PartRect(values[0], values[1], values[2], values[3]);
+    }
 
     private static float Number(string cell) => float.Parse(cell, CultureInfo.InvariantCulture);
 

@@ -25,7 +25,8 @@ public sealed record NodeRecord(
     float ScaleY,
     int PartId,
     string Texture,
-    byte[] Text)
+    byte[] Text,
+    PartRect Part)
 {
     public const string TextType = "Text";
     public const string ImageType = "Image";

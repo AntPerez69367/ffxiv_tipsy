@@ -22,6 +22,7 @@ internal sealed class TooltipBlockRenderer
     private const string WidestValue = "+9999";
     private const string FlagSeparator = "   ";
     private const string Ellipsis = "…";
+    private const string HighResolutionSuffix = "_hr1.tex";
 
     private readonly ITextureProvider textures;
     private readonly TooltipFonts fonts;
@@ -144,6 +145,9 @@ internal sealed class TooltipBlockRenderer
             case KeyValueBlock row:
                 DrawKeyValue(row);
                 break;
+            case IconTextBlock iconText:
+                DrawIconText(iconText);
+                break;
             case ParagraphBlock paragraph:
                 using (paragraph.Secondary ? fonts.Small.Push() : fonts.Body.Push())
                     SeString(paragraph.Text, tokens.WrapWidth, paragraph.Secondary ? theme.SecondaryText : theme.PrimaryText);
@@ -190,6 +194,8 @@ internal sealed class TooltipBlockRenderer
                 SeString(FlagLine(header), textWidth, theme.SecondaryText);
         }
 
+        if (header.Badges.Count > 0)
+            DrawBadges(header.Badges);
         ImGui.EndGroup();
     }
 
@@ -361,6 +367,42 @@ internal sealed class TooltipBlockRenderer
         drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth, tokens.BarHeight), ImGui.GetColorU32(Rgb.ToVector4(theme.Divider, theme.DividerAlpha)), tokens.BarRounding);
         if (bar.Fraction > 0)
             drawList.AddRectFilled(top, top + new Vector2(tokens.WrapWidth * bar.Fraction, tokens.BarHeight), ImGui.GetColorU32(Rgb.ToVector4(theme.Accent)), tokens.BarRounding);
+    }
+
+    private void DrawBadges(EquatableList<ImagePart> badges)
+    {
+        var size = new Vector2(tokens.MateriaIconSize);
+        for (var i = 0; i < badges.Count; i++)
+        {
+            if (i > 0)
+                ImGui.SameLine(0, tokens.InlineGap / 2);
+            DrawImage(badges[i], size);
+        }
+    }
+
+    private void DrawIconText(IconTextBlock iconText)
+    {
+        using var font = fonts.Body.Push();
+        var size = new Vector2(tokens.MateriaIconSize);
+        DrawImage(iconText.Icon, size);
+        ImGui.SameLine(0, tokens.InlineGap);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + ((size.Y - ImGui.GetTextLineHeight()) / 2));
+        SeString(iconText.Text, tokens.WrapWidth - size.X - tokens.InlineGap, theme.PrimaryText);
+    }
+
+    private void DrawImage(ImagePart image, Vector2 size)
+    {
+        if (IconOf(image.Texture) is { } icon)
+        {
+            ImGui.Image(textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty().Handle, size);
+            return;
+        }
+
+        var wrap = textures.GetFromGame(image.Texture).GetWrapOrEmpty();
+        var scale = image.Texture.EndsWith(HighResolutionSuffix, StringComparison.Ordinal) ? 2 : 1;
+        var min = new Vector2(image.Part.U, image.Part.V) * scale / wrap.Size;
+        var max = min + (new Vector2(image.Part.Width, image.Part.Height) * scale / wrap.Size);
+        ImGui.Image(wrap.Handle, size, min, max);
     }
 
     private void DrawKeyValue(KeyValueBlock row)

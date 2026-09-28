@@ -23,7 +23,10 @@ public static class ItemTooltipLayout
             SharedLayout.Plain(slots, ItemDetailMap.IconCooldown).Trim(),
             SeStringText.SingleLine(name.Text),
             Texts(slots, ItemDetailMap.Category, ItemDetailMap.ItemLevel, ItemDetailMap.Level, ItemDetailMap.Classes),
-            Texts(slots, ItemDetailMap.Unique, ItemDetailMap.Untradable, ItemDetailMap.Binding, ItemDetailMap.Owned)));
+            Texts(slots, ItemDetailMap.Unique, ItemDetailMap.Untradable, ItemDetailMap.Binding, ItemDetailMap.Owned))
+        {
+            Badges = Images(slots, [ItemDetailMap.RecipeIcon, .. ItemDetailMap.StorageIcons]),
+        });
         blocks.Add(new DividerBlock());
 
         var parameters = Enumerable.Range(0, ItemDetailMap.ParamCount)
@@ -68,6 +71,8 @@ public static class ItemTooltipLayout
         if (slots.ContainsKey(ItemDetailMap.RepairsHeader))
         {
             Caption(blocks, slots, ItemDetailMap.RepairsHeader);
+            if (slots.TryGetValue(ItemDetailMap.RepairsJobIcon, out var jobIcon) && jobIcon.Texture.Length > 0)
+                blocks.Add(new IconTextBlock(new ImagePart(jobIcon.Texture, jobIcon.Part), slots.GetValueOrDefault(ItemDetailMap.RepairsJobLevel)?.Text ?? SeText.Empty));
             for (var row = 0; row < ItemDetailMap.RepairRows.Count; row++)
             {
                 var (label, value) = ItemDetailMap.RepairRows[row];
@@ -97,6 +102,7 @@ public static class ItemTooltipLayout
         Paragraph(blocks, slots, ItemDetailMap.CraftedBy, true);
         Paragraph(blocks, slots, ItemDetailMap.SellsFor, true);
         Paragraph(blocks, slots, ItemDetailMap.ShopPrice, true);
+        Paragraph(blocks, slots, ItemDetailMap.ControlHint, true);
 
         SharedLayout.AppendExtras(blocks, snapshot);
         return blocks;
@@ -147,6 +153,15 @@ public static class ItemTooltipLayout
             .OfType<SlotValue>()
             .Where(HasText)
             .Select(value => value.Text),
+    ];
+
+    private static EquatableList<ImagePart> Images(IReadOnlyDictionary<string, SlotValue> slots, IEnumerable<string> wanted) =>
+    [
+        .. wanted
+            .Select(slots.GetValueOrDefault)
+            .OfType<SlotValue>()
+            .Where(value => value.Texture.Length > 0)
+            .Select(value => new ImagePart(value.Texture, value.Part)),
     ];
 
     private static bool HasText(SlotValue value) => !string.IsNullOrWhiteSpace(SeStringText.Plain(value.Text));
