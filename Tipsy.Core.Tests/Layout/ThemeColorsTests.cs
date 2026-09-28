@@ -31,6 +31,14 @@ public class ThemeColorsTests
     }
 
     [Fact]
+    public void TextReadableOverBlackAndWhiteFailsOnATransparentSurfaceOverAMatchingGrey()
+    {
+        var theme = ThemeColors.Native with { SurfaceAlpha = 0, SecondaryText = 0x767676 };
+
+        Assert.Equal(1, theme.SecondaryContrast());
+    }
+
+    [Fact]
     public void GreySecondaryTextOnAGreySurfaceFailsTheContrastCheck()
     {
         var theme = ThemeColors.Native with { Surface = 0x606060, SecondaryText = 0x808080 };
