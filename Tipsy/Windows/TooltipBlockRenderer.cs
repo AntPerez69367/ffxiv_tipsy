@@ -6,6 +6,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Tipsy.Core.Layout;
 using Tipsy.Core.Text;
@@ -158,11 +159,8 @@ internal sealed class TooltipBlockRenderer
                 break;
             case WarningBlock warning:
                 using (fonts.Small.Push())
-                {
-                    ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + tokens.WrapWidth);
+                using (ImRaii.TextWrapPos(ImGui.GetCursorPosX() + tokens.WrapWidth))
                     ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), warning.Text);
-                    ImGui.PopTextWrapPos();
-                }
 
                 break;
         }
@@ -181,7 +179,7 @@ internal sealed class TooltipBlockRenderer
 
         var textWidth = tokens.WrapWidth - tokens.IconSize - tokens.IconTextGap;
         var nameWidth = textWidth;
-        ImGui.BeginGroup();
+        using var group = ImRaii.Group();
         if (header.Keybind.Length > 0)
             nameWidth -= DrawKeycap(KeyLabels.Readable(header.Keybind)) + tokens.InlineGap;
         using (fonts.Title.Push())
@@ -196,7 +194,6 @@ internal sealed class TooltipBlockRenderer
 
         if (header.Badges.Count > 0)
             DrawBadges(header.Badges);
-        ImGui.EndGroup();
     }
 
     private SeText FlagLine(HeaderBlock header)
@@ -261,7 +258,8 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawParams(ParamsBlock parameters)
     {
-        if (!ImGui.BeginTable("params", parameters.Params.Count, ImGuiTableFlags.SizingStretchSame, new Vector2(tokens.WrapWidth, 0)))
+        using var paramsTable = ImRaii.Table("params", parameters.Params.Count, ImGuiTableFlags.SizingStretchSame, new Vector2(tokens.WrapWidth, 0));
+        if (!paramsTable)
             return;
         ImGui.TableNextRow();
         foreach (var parameter in parameters.Params)
@@ -286,8 +284,6 @@ internal sealed class TooltipBlockRenderer
                 }
             }
         }
-
-        ImGui.EndTable();
     }
 
     private void DrawStats(StatTableBlock table)
@@ -296,7 +292,8 @@ internal sealed class TooltipBlockRenderer
         var valueWidth = ImGui.CalcTextSize(WidestValue).X;
         var labelWidth = StatLabelWidth(tokens);
         var gap = tokens.InlineGap;
-        if (!ImGui.BeginTable("stats", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadInnerX | ImGuiTableFlags.NoPadOuterX))
+        using var statsTable = ImRaii.Table("stats", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadInnerX | ImGuiTableFlags.NoPadOuterX);
+        if (!statsTable)
             return;
         ImGui.TableSetupColumn("label1", ImGuiTableColumnFlags.WidthFixed, labelWidth + gap);
         ImGui.TableSetupColumn("value1", ImGuiTableColumnFlags.WidthFixed, valueWidth);
@@ -316,8 +313,6 @@ internal sealed class TooltipBlockRenderer
             ImGui.SetCursorPosX(ImGui.GetCursorPosX() + valueWidth - ImGui.CalcTextSize(stat.Value).X);
             ImGui.TextUnformatted(stat.Value);
         }
-
-        ImGui.EndTable();
     }
 
     private void DrawMateria(MateriaBlock materia)

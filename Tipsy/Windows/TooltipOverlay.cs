@@ -3,6 +3,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Tipsy.Core.Layout;
@@ -33,8 +34,8 @@ public sealed class TooltipOverlay : Window
     private IReadOnlyList<TooltipBlock> lastBlocks = [];
     private float lastContentHeight;
     private WindowPlacement placement;
-    private int pushedStyles;
-    private int pushedColors;
+    private ImRaii.StyleDisposable? styles;
+    private ImRaii.ColorDisposable? colors;
 
     internal TooltipOverlay(TooltipSelector selector, IKeyState keyState, TooltipBlockRenderer renderer, Configuration configuration)
         : base("Tipsy tooltip##overlay", LiveFlags)
@@ -76,12 +77,15 @@ public sealed class TooltipOverlay : Window
     /// </summary>
     public (Vector2 Min, Vector2 Max)? SampleBeside { get; set; }
 
-    public override bool DrawConditions()
+    public override void Update()
     {
         selector.Update();
         if (selector.Blocks.Count > 0)
             lastBlocks = selector.Blocks;
+    }
 
+    public override bool DrawConditions()
+    {
         showingSample = false;
         fitting = false;
         if (placing)
@@ -131,22 +135,20 @@ public sealed class TooltipOverlay : Window
         placingStarted = false;
         ImGui.SetNextWindowSizeConstraints(new Vector2(tokens.Width, 0), new Vector2(tokens.Width, placement.MaxHeight));
 
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(tokens.Padding));
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, theme.Rounding * scale);
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f);
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(tokens.InlineGap, 0));
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Vector2.Zero);
-        pushedStyles = 5;
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, Rgb.ToVector4(theme.Surface, theme.SurfaceAlpha));
-        ImGui.PushStyleColor(ImGuiCol.Border, Rgb.ToVector4(theme.Border));
-        ImGui.PushStyleColor(ImGuiCol.Text, Rgb.ToVector4(theme.PrimaryText));
-        pushedColors = 3;
+        styles = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, new Vector2(tokens.Padding))
+            .Push(ImGuiStyleVar.WindowRounding, theme.Rounding * scale)
+            .Push(ImGuiStyleVar.WindowBorderSize, 1f)
+            .Push(ImGuiStyleVar.ItemSpacing, new Vector2(tokens.InlineGap, 0))
+            .Push(ImGuiStyleVar.CellPadding, Vector2.Zero);
+        colors = ImRaii.PushColor(ImGuiCol.WindowBg, Rgb.ToVector4(theme.Surface, theme.SurfaceAlpha))
+            .Push(ImGuiCol.Border, Rgb.ToVector4(theme.Border))
+            .Push(ImGuiCol.Text, Rgb.ToVector4(theme.PrimaryText));
     }
 
     public override void PostDraw()
     {
-        ImGui.PopStyleColor(pushedColors);
-        ImGui.PopStyleVar(pushedStyles);
+        colors?.Dispose();
+        styles?.Dispose();
     }
 
     public override void Draw()

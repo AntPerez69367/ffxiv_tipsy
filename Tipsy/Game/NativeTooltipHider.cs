@@ -42,7 +42,7 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
         {
             enabled = value;
             if (!value)
-                SetAlpha((AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address, Opaque);
+                SetAlpha(gameGui.GetAddonByName<AtkUnitBase>(reader.Addon), Opaque);
         }
     }
 
@@ -50,7 +50,7 @@ internal sealed unsafe class NativeTooltipHider : IDisposable
     {
         addonLifecycle.UnregisterListener(AddonEvent.PostRequestedUpdate, reader.Addon, OnRequestedUpdate);
         reader.Drawing -= OnDrawing;
-        SetAlpha((AtkUnitBase*)gameGui.GetAddonByName(reader.Addon).Address, Opaque);
+        SetAlpha(gameGui.GetAddonByName<AtkUnitBase>(reader.Addon), Opaque);
     }
 
     private void OnRequestedUpdate(AddonEvent type, AddonArgs args)
