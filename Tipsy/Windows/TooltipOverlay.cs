@@ -144,9 +144,9 @@ public sealed class TooltipOverlay : Window
             return false;
         }
 
-        if (ReferenceEquals(wanted, visible))
+        if (ReferenceEquals(wanted, visible) && fits == visibleFits)
             return true;
-        if (ReferenceEquals(wanted, measured))
+        if (ReferenceEquals(wanted, measured) && fits == measuredFits)
         {
             visible = wanted;
             visibleFits = fits;
@@ -154,7 +154,7 @@ public sealed class TooltipOverlay : Window
             return true;
         }
 
-        if (measuredFrame == ImGui.GetFrameCount() - 1 && !ReferenceEquals(measured, visible))
+        if (measuredFrame == ImGui.GetFrameCount() - 1 && !(ReferenceEquals(measured, visible) && measuredFits == visibleFits))
         {
             visible = measured;
             visibleFits = measuredFits;
