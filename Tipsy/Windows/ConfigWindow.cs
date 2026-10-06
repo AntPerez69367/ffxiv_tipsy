@@ -4,6 +4,8 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.ClientState.Keys;
+using Dalamud.Interface.Colors;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using Tipsy.Core.Layout;
@@ -75,14 +77,16 @@ public sealed class ConfigWindow : Window
         ImGui.Checkbox("Preview tooltip", ref showSample);
         overlay.SampleBeside = showSample ? (ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize()) : null;
         ImGui.Spacing();
-        if (!ImGui.BeginTabBar("settings"))
-            return;
-        Tab("General", DrawGeneral);
-        var onPosition = Tab("Position", DrawPosition);
-        Tab("Appearance", DrawAppearance);
-        if (!onPosition && overlay.Placing)
-            overlay.Placing = false;
-        ImGui.EndTabBar();
+        using (var tabBar = ImRaii.TabBar("settings"))
+        {
+            if (!tabBar)
+                return;
+            Tab("General", DrawGeneral);
+            var onPosition = Tab("Position", DrawPosition);
+            Tab("Appearance", DrawAppearance);
+            if (!onPosition && overlay.Placing)
+                overlay.Placing = false;
+        }
 
         ImGui.Spacing();
         if (ImGui.Button("Support on Ko-fi"))
@@ -91,10 +95,10 @@ public sealed class ConfigWindow : Window
 
     private static bool Tab(string label, Action draw)
     {
-        if (!ImGui.BeginTabItem(label))
+        using var tab = ImRaii.TabItem(label);
+        if (!tab)
             return false;
         draw();
-        ImGui.EndTabItem();
         return true;
     }
 
@@ -111,11 +115,14 @@ public sealed class ConfigWindow : Window
         Hint("Off shows the game's own tooltips.");
         ImGui.Spacing();
 
-        if (!BeginRows("general", false))
-            return;
-        Row("Hold to hide");
-        DrawHideKey();
-        ImGui.EndTable();
+        using (var rows = Rows("general", false))
+        {
+            if (!rows)
+                return;
+            Row("Hold to hide");
+            DrawHideKey();
+        }
+
         Hint(capturingKey
             ? "Press the key to use. Esc cancels, Backspace sets no key."
             : "Hold this key to hide Tipsy's tooltip when it covers something.");
@@ -153,41 +160,43 @@ public sealed class ConfigWindow : Window
 
     private void DrawPosition()
     {
-        if (BeginRows("position", false))
+        using (var rows = Rows("position", false))
         {
-            Row("Position");
-            var current = Anchors.First(entry => entry.Anchor == configuration.Anchor).Label;
-            if (ImGui.BeginCombo("##anchor", current))
+            if (rows)
             {
-                foreach (var (anchor, label) in Anchors)
+                Row("Position");
+                var current = Anchors.First(entry => entry.Anchor == configuration.Anchor).Label;
+                using (var combo = ImRaii.Combo("##anchor", current))
                 {
-                    if (!ImGui.Selectable(label, anchor == configuration.Anchor))
-                        continue;
-                    if (anchor == AnchorPreset.Custom && configuration.Anchor != AnchorPreset.Custom)
-                        overlay.Placing = true;
-                    else if (anchor != AnchorPreset.Custom)
-                        overlay.Placing = false;
-                    configuration.Anchor = anchor;
-                    configuration.Save();
+                    if (combo)
+                    {
+                        foreach (var (anchor, label) in Anchors)
+                        {
+                            if (!ImGui.Selectable(label, anchor == configuration.Anchor))
+                                continue;
+                            if (anchor == AnchorPreset.Custom && configuration.Anchor != AnchorPreset.Custom)
+                                overlay.Placing = true;
+                            else if (anchor != AnchorPreset.Custom)
+                                overlay.Placing = false;
+                            configuration.Anchor = anchor;
+                            configuration.Save();
+                        }
+                    }
                 }
 
-                ImGui.EndCombo();
+                if (configuration.Anchor == AnchorPreset.Cursor)
+                {
+                    var offset = configuration.CursorOffset;
+                    Row("Horizontal offset");
+                    if (ImGui.SliderFloat("##offsetX", ref offset.X, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
+                        configuration.CursorOffset = offset;
+                    SaveAfterEdit();
+                    Row("Vertical offset");
+                    if (ImGui.SliderFloat("##offsetY", ref offset.Y, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
+                        configuration.CursorOffset = offset;
+                    SaveAfterEdit();
+                }
             }
-
-            if (configuration.Anchor == AnchorPreset.Cursor)
-            {
-                var offset = configuration.CursorOffset;
-                Row("Horizontal offset");
-                if (ImGui.SliderFloat("##offsetX", ref offset.X, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
-                    configuration.CursorOffset = offset;
-                SaveAfterEdit();
-                Row("Vertical offset");
-                if (ImGui.SliderFloat("##offsetY", ref offset.Y, -Configuration.MaxCursorOffset, Configuration.MaxCursorOffset, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
-                    configuration.CursorOffset = offset;
-                SaveAfterEdit();
-            }
-
-            ImGui.EndTable();
         }
 
         if (configuration.Anchor != AnchorPreset.Custom)
@@ -202,60 +211,67 @@ public sealed class ConfigWindow : Window
     private void DrawAppearance()
     {
         var modified = configuration.ColourOverrides.Count + configuration.NumberOverrides.Count;
-        if (BeginRows("theme", false))
+        using (var rows = Rows("theme", false))
         {
-            Row("Theme");
-            var name = ThemeColors.NameOf(configuration.Preset);
-            var label = modified > 0 ? $"{name} (modified)" : name;
-            if (ImGui.BeginCombo("##theme", label))
+            if (rows)
             {
-                foreach (var preset in Enum.GetValues<ThemePreset>())
+                Row("Theme");
+                var name = ThemeColors.NameOf(configuration.Preset);
+                var label = modified > 0 ? $"{name} (modified)" : name;
+                using (var combo = ImRaii.Combo("##theme", label))
                 {
-                    if (!ImGui.Selectable(ThemeColors.NameOf(preset), preset == configuration.Preset) || preset == configuration.Preset)
-                        continue;
-                    if (modified > 0)
-                        pendingPreset = preset;
-                    else
-                        SwitchTheme(preset, false);
+                    if (combo)
+                    {
+                        foreach (var preset in Enum.GetValues<ThemePreset>())
+                        {
+                            if (!ImGui.Selectable(ThemeColors.NameOf(preset), preset == configuration.Preset) || preset == configuration.Preset)
+                                continue;
+                            if (modified > 0)
+                                pendingPreset = preset;
+                            else
+                                SwitchTheme(preset, false);
+                        }
+                    }
                 }
 
-                ImGui.EndCombo();
+                var width = configuration.Width;
+                var tokens = new LayoutTokens();
+                Row("Width");
+                if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
+                    configuration.Width = width;
+                SaveAfterEdit();
             }
-
-            var width = configuration.Width;
-            var tokens = new LayoutTokens();
-            Row("Width");
-            if (ImGui.SliderFloat("##width", ref width, tokens.MinWidth, tokens.MaxWidth, "%.0f px", ImGuiSliderFlags.AlwaysClamp))
-                configuration.Width = width;
-            SaveAfterEdit();
-            ImGui.EndTable();
         }
 
         if (pendingPreset is not null)
             ImGui.OpenPopup(SwitchThemePopup);
         DrawSwitchThemePopup();
 
-        ImGui.BeginDisabled(modified == 0);
-        if (ImGui.Button("Reset customizations"))
+        using (ImRaii.Disabled(modified == 0))
         {
-            configuration.ClearOverrides();
-            configuration.Save();
+            if (ImGui.Button("Reset customizations"))
+            {
+                configuration.ClearOverrides();
+                configuration.Save();
+            }
         }
-        ImGui.EndDisabled();
 
         var theme = configuration.Theme();
         DrawContrastWarning(theme);
-        if (!ImGui.CollapsingHeader("Customize") || !BeginRows("tokens", true))
+        if (!ImGui.CollapsingHeader("Customize"))
+            return;
+        using var tokenRows = Rows("tokens", true);
+        if (!tokenRows)
             return;
         foreach (var (token, tokenLabel) in Tokens)
             DrawToken(theme, token, tokenLabel);
-        ImGui.EndTable();
     }
 
     private void DrawSwitchThemePopup()
     {
         var open = true;
-        if (!ImGui.BeginPopupModal(SwitchThemePopup, ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        using var popup = ImRaii.PopupModal(SwitchThemePopup, ref open, ImGuiWindowFlags.AlwaysAutoResize);
+        if (!popup)
         {
             if (!open)
                 pendingPreset = null;
@@ -283,8 +299,6 @@ public sealed class ConfigWindow : Window
             pendingPreset = null;
             ImGui.CloseCurrentPopup();
         }
-
-        ImGui.EndPopup();
     }
 
     private void SwitchTheme(ThemePreset preset, bool discardChanges)
@@ -301,16 +315,14 @@ public sealed class ConfigWindow : Window
         var contrast = theme.SecondaryContrast();
         if (contrast >= ThemeColors.MinimumContrast)
             return;
-        ImGui.PushTextWrapPos(0);
-        ImGui.TextColored(new Vector4(1f, 0.6f, 0.4f, 1f), "Labels and details may be hard to read on this background.");
-        ImGui.PopTextWrapPos();
+        ImGui.TextColoredWrapped(ImGuiColors.DalamudOrange, "Labels and details may be hard to read on this background.");
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip($"Contrast is {contrast:F1}:1. Text stays readable at {ThemeColors.MinimumContrast}:1 or more.");
     }
 
     private void DrawToken(ThemeColors theme, ThemeToken token, string label)
     {
-        ImGui.PushID((int)token);
+        using var id = ImRaii.PushId((int)token);
         Row(label);
         if (ThemeColors.IsColour(token))
         {
@@ -334,26 +346,26 @@ public sealed class ConfigWindow : Window
         SaveAfterEdit();
         ImGui.TableNextColumn();
         var overridden = configuration.ColourOverrides.ContainsKey(token) || configuration.NumberOverrides.ContainsKey(token);
-        ImGui.BeginDisabled(!overridden);
-        if (ImGui.Button("Reset"))
+        using (ImRaii.Disabled(!overridden))
         {
-            configuration.ResetToken(token);
-            configuration.Save();
+            if (ImGui.Button("Reset"))
+            {
+                configuration.ResetToken(token);
+                configuration.Save();
+            }
         }
-
-        ImGui.EndDisabled();
-        ImGui.PopID();
     }
 
-    private static bool BeginRows(string id, bool withReset)
+    private static ImRaii.TableDisposable Rows(string id, bool withReset)
     {
-        if (!ImGui.BeginTable(id, withReset ? 3 : 2, ImGuiTableFlags.SizingFixedFit))
-            return false;
+        var table = ImRaii.Table(id, withReset ? 3 : 2, ImGuiTableFlags.SizingFixedFit);
+        if (!table)
+            return table;
         ImGui.TableSetupColumn("label", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("control", ImGuiTableColumnFlags.WidthStretch);
         if (withReset)
             ImGui.TableSetupColumn("reset", ImGuiTableColumnFlags.WidthFixed);
-        return true;
+        return table;
     }
 
     private static void Row(string label)
@@ -368,9 +380,8 @@ public sealed class ConfigWindow : Window
 
     private static void Hint(string text)
     {
-        ImGui.PushTextWrapPos(0);
-        ImGui.TextDisabled(text);
-        ImGui.PopTextWrapPos();
+        using (ImRaii.TextWrapPos(0))
+            ImGui.TextDisabled(text);
     }
 
     private void SaveAfterEdit()

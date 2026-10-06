@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Dalamud.Plugin.Services;
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using Tipsy.Core.Layout;
 using Tipsy.Core.Tooltips;
 using Tipsy.Windows;
@@ -13,7 +12,7 @@ namespace Tipsy.Game;
 /// a native tooltip is only ever hidden when Tipsy draws its content. Each caller runs <see cref="Update"/> first, after
 /// the readers it depends on are current.
 /// </summary>
-internal sealed unsafe class TooltipSelector
+internal sealed class TooltipSelector
 {
     private readonly IReadOnlyList<TooltipSource> sources;
     private readonly TooltipSource text;
@@ -70,9 +69,6 @@ internal sealed unsafe class TooltipSelector
         return blocks;
     }
 
-    private bool IsShowing(TooltipSource source)
-    {
-        var unit = (AtkUnitBase*)gameGui.GetAddonByName(source.Reader.Addon).Address;
-        return unit != null && unit->IsVisible && source.Reader.Current is not null;
-    }
+    private bool IsShowing(TooltipSource source) =>
+        gameGui.GetAddonByName(source.Reader.Addon).IsVisible && source.Reader.Current is not null;
 }

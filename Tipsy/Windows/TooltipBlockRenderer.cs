@@ -6,6 +6,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiSeStringRenderer;
 using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Tipsy.Core.Layout;
 using Tipsy.Core.Text;
@@ -78,6 +79,36 @@ internal sealed class TooltipBlockRenderer
         }
 
         return Math.Min(maxWidth, MathF.Ceiling(cached.Pixels / scale) + (2 * padding) + 1);
+    }
+
+    /// <summary>
+    /// Whether every image <paramref name="blocks"/> draws has loaded, or failed and never will. An icon slot whose
+    /// texture the game has not loaded yet counts as not ready. Asking starts the loads that have not started.
+    /// </summary>
+    public bool ImagesReady(IReadOnlyList<TooltipBlock> blocks)
+    {
+        var ready = true;
+        foreach (var block in blocks)
+        {
+            switch (block)
+            {
+                case HeaderBlock header:
+                    if (header.IconTexture is { } icon)
+                        ready &= icon.Length > 0 && Loaded(GameIconTexture(icon));
+                    foreach (var badge in header.Badges)
+                        ready &= Loaded(ImageTexture(badge.Texture));
+                    break;
+                case MateriaBlock materia:
+                    foreach (var (name, _) in materia.Materia)
+                        ready &= Loaded(MateriaIcon(name));
+                    break;
+                case IconTextBlock iconText:
+                    ready &= Loaded(ImageTexture(iconText.Icon.Texture));
+                    break;
+            }
+        }
+
+        return ready;
     }
 
 #if TIPSY_PROBE
@@ -158,11 +189,8 @@ internal sealed class TooltipBlockRenderer
                 break;
             case WarningBlock warning:
                 using (fonts.Small.Push())
-                {
-                    ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + tokens.WrapWidth);
+                using (ImRaii.TextWrapPos(ImGui.GetCursorPosX() + tokens.WrapWidth))
                     ImGui.TextColored(Rgb.ToVector4(theme.SecondaryText), warning.Text);
-                    ImGui.PopTextWrapPos();
-                }
 
                 break;
         }
@@ -170,10 +198,11 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawHeader(HeaderBlock header)
     {
-        if (header.IconTexture is { } texture && IconOf(texture) is { } icon)
+        if (header.IconTexture is { } texture)
         {
-            var wrap = textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty();
-            ImGui.Image(wrap.Handle, new Vector2(tokens.IconSize));
+            DrawIcon(GameIconTexture(texture), new Vector2(tokens.IconSize));
+            if (IconOf(texture) is { HighQuality: true } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon.Id), out var normal))
+                normal.TryGetWrap(out _, out _);
             if (header.IconCooldown.Length > 0)
                 DrawIconCooldown(header.IconCooldown);
             ImGui.SameLine(0, tokens.IconTextGap);
@@ -181,7 +210,7 @@ internal sealed class TooltipBlockRenderer
 
         var textWidth = tokens.WrapWidth - tokens.IconSize - tokens.IconTextGap;
         var nameWidth = textWidth;
-        ImGui.BeginGroup();
+        using var group = ImRaii.Group();
         if (header.Keybind.Length > 0)
             nameWidth -= DrawKeycap(KeyLabels.Readable(header.Keybind)) + tokens.InlineGap;
         using (fonts.Title.Push())
@@ -196,7 +225,6 @@ internal sealed class TooltipBlockRenderer
 
         if (header.Badges.Count > 0)
             DrawBadges(header.Badges);
-        ImGui.EndGroup();
     }
 
     private SeText FlagLine(HeaderBlock header)
@@ -261,7 +289,8 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawParams(ParamsBlock parameters)
     {
-        if (!ImGui.BeginTable("params", parameters.Params.Count, ImGuiTableFlags.SizingStretchSame, new Vector2(tokens.WrapWidth, 0)))
+        using var paramsTable = ImRaii.Table("params", parameters.Params.Count, ImGuiTableFlags.SizingStretchSame, new Vector2(tokens.WrapWidth, 0));
+        if (!paramsTable)
             return;
         ImGui.TableNextRow();
         foreach (var parameter in parameters.Params)
@@ -286,8 +315,6 @@ internal sealed class TooltipBlockRenderer
                 }
             }
         }
-
-        ImGui.EndTable();
     }
 
     private void DrawStats(StatTableBlock table)
@@ -296,7 +323,8 @@ internal sealed class TooltipBlockRenderer
         var valueWidth = ImGui.CalcTextSize(WidestValue).X;
         var labelWidth = StatLabelWidth(tokens);
         var gap = tokens.InlineGap;
-        if (!ImGui.BeginTable("stats", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadInnerX | ImGuiTableFlags.NoPadOuterX))
+        using var statsTable = ImRaii.Table("stats", 4, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoPadInnerX | ImGuiTableFlags.NoPadOuterX);
+        if (!statsTable)
             return;
         ImGui.TableSetupColumn("label1", ImGuiTableColumnFlags.WidthFixed, labelWidth + gap);
         ImGui.TableSetupColumn("value1", ImGuiTableColumnFlags.WidthFixed, valueWidth);
@@ -316,8 +344,6 @@ internal sealed class TooltipBlockRenderer
             ImGui.SetCursorPosX(ImGui.GetCursorPosX() + valueWidth - ImGui.CalcTextSize(stat.Value).X);
             ImGui.TextUnformatted(stat.Value);
         }
-
-        ImGui.EndTable();
     }
 
     private void DrawMateria(MateriaBlock materia)
@@ -330,9 +356,9 @@ internal sealed class TooltipBlockRenderer
                 ImGui.Dummy(new Vector2(0, tokens.RowGap));
             var (name, effect) = materia.Materia[i];
             var left = ImGui.GetCursorPosX();
-            if (name.Length > 0 && itemIcons.Find(name) is { } icon)
+            if (MateriaIcon(name) is { } icon)
             {
-                ImGui.Image(textures.GetFromGameIcon(new GameIconLookup(icon)).GetWrapOrEmpty().Handle, size);
+                ImGui.Image(icon.GetWrapOrEmpty().Handle, size);
             }
             else
             {
@@ -392,9 +418,9 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawImage(ImagePart image, Vector2 size)
     {
-        if (IconOf(image.Texture) is { } icon)
+        if (IconOf(image.Texture) is not null)
         {
-            ImGui.Image(textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty().Handle, size);
+            DrawIcon(GameIconTexture(image.Texture), size);
             return;
         }
 
@@ -404,6 +430,27 @@ internal sealed class TooltipBlockRenderer
         var max = min + (new Vector2(image.Part.Width, image.Part.Height) * scale / wrap.Size);
         ImGui.Image(wrap.Handle, size, min, max);
     }
+
+    private static void DrawIcon(ISharedImmediateTexture? texture, Vector2 size)
+    {
+        if (texture is null)
+            ImGui.Dummy(size);
+        else
+            ImGui.Image(texture.GetWrapOrEmpty().Handle, size);
+    }
+
+    private static bool Loaded(ISharedImmediateTexture? texture) =>
+        texture is null || texture.TryGetWrap(out _, out var exception) || exception is not null;
+
+    /// <summary>The game icon <paramref name="texture"/> names, or null when it names no icon or the icon file does not exist.</summary>
+    private ISharedImmediateTexture? GameIconTexture(string texture) =>
+        IconOf(texture) is { } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality), out var shared) ? shared : null;
+
+    private ISharedImmediateTexture? ImageTexture(string texture) =>
+        IconOf(texture) is null ? textures.GetFromGame(texture) : GameIconTexture(texture);
+
+    private ISharedImmediateTexture? MateriaIcon(string name) =>
+        name.Length > 0 && itemIcons.Find(name) is { } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon), out var shared) ? shared : null;
 
     private void DrawKeyValue(KeyValueBlock row)
     {

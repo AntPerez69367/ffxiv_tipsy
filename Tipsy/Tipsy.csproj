@@ -5,7 +5,7 @@
     <Author>Elserie</Author>
     <Name>Tipsy</Name>
     <Punchline>Themeable replacements for the game's tooltips.</Punchline>
-    <Description>Tipsy replaces the game's item, action and text tooltips with one themeable window. Pin it to a corner, a spot of your own or your cursor, pick a theme or your own colours, and keep the lines other plugins add.</Description>
+    <Description>Tipsy replaces the game's item, action and text tooltips with one themeable window. Pin it to a corner, a spot of your own or your cursor, pick a theme or your own colours, and keep the lines other plugins add. The plugin icon is AI-generated.</Description>
     <RepoUrl>https://github.com/AntPerez69367/ffxiv_tipsy</RepoUrl>
     <Tags>tooltip;ui;items;actions;theme</Tags>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
