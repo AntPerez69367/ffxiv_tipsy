@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
@@ -15,6 +16,7 @@ namespace Tipsy.Windows;
 public sealed class TooltipOverlay : Window
 {
     private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
+    private const long SwapTimeoutMs = 150;
     private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
 
     private readonly TooltipSelector selector;
@@ -32,6 +34,9 @@ public sealed class TooltipOverlay : Window
     private bool fitting;
     private IReadOnlyList<TooltipBlock> shown = [];
     private IReadOnlyList<TooltipBlock> lastBlocks = [];
+    private IReadOnlyList<TooltipBlock> live = [];
+    private bool liveFits;
+    private long? waitingSince;
     private float lastContentHeight;
     private WindowPlacement placement;
     private ImRaii.StyleDisposable? styles;
@@ -77,11 +82,36 @@ public sealed class TooltipOverlay : Window
     /// </summary>
     public (Vector2 Min, Vector2 Max)? SampleBeside { get; set; }
 
+    /// <summary>
+    /// Updates the selection and swaps the tooltip Tipsy draws over to it only once its images have loaded, or after
+    /// <see cref="SwapTimeoutMs"/>, so a tooltip is never drawn with an icon missing while the previous one is still
+    /// complete. When the game's tooltip closes, nothing is kept.
+    /// </summary>
     public override void Update()
     {
         selector.Update();
         if (selector.Blocks.Count > 0)
             lastBlocks = selector.Blocks;
+        if (selector.Drawn is not { } drawn)
+        {
+            live = [];
+            waitingSince = null;
+            return;
+        }
+
+        if (ReferenceEquals(selector.Blocks, live))
+        {
+            waitingSince = null;
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        waitingSince ??= now;
+        if (!renderer.ImagesReady(selector.Blocks) && now - waitingSince < SwapTimeoutMs)
+            return;
+        live = selector.Blocks;
+        liveFits = drawn.FitToContent;
+        waitingSince = null;
     }
 
     public override bool DrawConditions()
@@ -94,11 +124,11 @@ public sealed class TooltipOverlay : Window
             return true;
         }
 
-        if (configuration.ReplaceTooltips && selector.Drawn is { } drawn && !HideKeyHeld())
+        if (configuration.ReplaceTooltips && selector.Drawn is not null && !HideKeyHeld())
         {
-            shown = selector.Blocks;
-            fitting = drawn.FitToContent;
-            return true;
+            shown = live;
+            fitting = liveFits;
+            return live.Count > 0;
         }
 
         if (SampleBeside is null)

@@ -81,6 +81,36 @@ internal sealed class TooltipBlockRenderer
         return Math.Min(maxWidth, MathF.Ceiling(cached.Pixels / scale) + (2 * padding) + 1);
     }
 
+    /// <summary>
+    /// Whether every image <paramref name="blocks"/> draws has loaded, or failed and never will. An icon slot whose
+    /// texture the game has not loaded yet counts as not ready. Asking starts the loads that have not started.
+    /// </summary>
+    public bool ImagesReady(IReadOnlyList<TooltipBlock> blocks)
+    {
+        var ready = true;
+        foreach (var block in blocks)
+        {
+            switch (block)
+            {
+                case HeaderBlock header:
+                    if (header.IconTexture is { } icon)
+                        ready &= icon.Length > 0 && Loaded(GameIconTexture(icon));
+                    foreach (var badge in header.Badges)
+                        ready &= Loaded(ImageTexture(badge.Texture));
+                    break;
+                case MateriaBlock materia:
+                    foreach (var (name, _) in materia.Materia)
+                        ready &= Loaded(MateriaIcon(name));
+                    break;
+                case IconTextBlock iconText:
+                    ready &= Loaded(ImageTexture(iconText.Icon.Texture));
+                    break;
+            }
+        }
+
+        return ready;
+    }
+
 #if TIPSY_PROBE
     /// <summary>The stat labels that would be clipped in the stat table at <paramref name="width"/> unscaled pixels.</summary>
     public List<string> ClippedStatLabels(IEnumerable<string> labels, float width)
@@ -168,10 +198,11 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawHeader(HeaderBlock header)
     {
-        if (header.IconTexture is { } texture && IconOf(texture) is { } icon)
+        if (header.IconTexture is { } texture)
         {
-            var wrap = textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty();
-            ImGui.Image(wrap.Handle, new Vector2(tokens.IconSize));
+            DrawIcon(GameIconTexture(texture), new Vector2(tokens.IconSize));
+            if (IconOf(texture) is { HighQuality: true } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon.Id), out var normal))
+                normal.TryGetWrap(out _, out _);
             if (header.IconCooldown.Length > 0)
                 DrawIconCooldown(header.IconCooldown);
             ImGui.SameLine(0, tokens.IconTextGap);
@@ -325,9 +356,9 @@ internal sealed class TooltipBlockRenderer
                 ImGui.Dummy(new Vector2(0, tokens.RowGap));
             var (name, effect) = materia.Materia[i];
             var left = ImGui.GetCursorPosX();
-            if (name.Length > 0 && itemIcons.Find(name) is { } icon)
+            if (MateriaIcon(name) is { } icon)
             {
-                ImGui.Image(textures.GetFromGameIcon(new GameIconLookup(icon)).GetWrapOrEmpty().Handle, size);
+                ImGui.Image(icon.GetWrapOrEmpty().Handle, size);
             }
             else
             {
@@ -387,9 +418,9 @@ internal sealed class TooltipBlockRenderer
 
     private void DrawImage(ImagePart image, Vector2 size)
     {
-        if (IconOf(image.Texture) is { } icon)
+        if (IconOf(image.Texture) is not null)
         {
-            ImGui.Image(textures.GetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality)).GetWrapOrEmpty().Handle, size);
+            DrawIcon(GameIconTexture(image.Texture), size);
             return;
         }
 
@@ -399,6 +430,27 @@ internal sealed class TooltipBlockRenderer
         var max = min + (new Vector2(image.Part.Width, image.Part.Height) * scale / wrap.Size);
         ImGui.Image(wrap.Handle, size, min, max);
     }
+
+    private static void DrawIcon(ISharedImmediateTexture? texture, Vector2 size)
+    {
+        if (texture is null)
+            ImGui.Dummy(size);
+        else
+            ImGui.Image(texture.GetWrapOrEmpty().Handle, size);
+    }
+
+    private static bool Loaded(ISharedImmediateTexture? texture) =>
+        texture is null || texture.TryGetWrap(out _, out var exception) || exception is not null;
+
+    /// <summary>The game icon <paramref name="texture"/> names, or null when it names no icon or the icon file does not exist.</summary>
+    private ISharedImmediateTexture? GameIconTexture(string texture) =>
+        IconOf(texture) is { } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon.Id, icon.HighQuality), out var shared) ? shared : null;
+
+    private ISharedImmediateTexture? ImageTexture(string texture) =>
+        IconOf(texture) is null ? textures.GetFromGame(texture) : GameIconTexture(texture);
+
+    private ISharedImmediateTexture? MateriaIcon(string name) =>
+        name.Length > 0 && itemIcons.Find(name) is { } icon && textures.TryGetFromGameIcon(new GameIconLookup(icon), out var shared) ? shared : null;
 
     private void DrawKeyValue(KeyValueBlock row)
     {

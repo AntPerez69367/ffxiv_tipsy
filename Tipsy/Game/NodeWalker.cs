@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Tipsy.Core.Nodes;
 
@@ -18,9 +19,10 @@ internal static unsafe class NodeWalker
     }
 
     /// <summary>
-    /// A hash of every node's id, visibility, position, whether it has a size, image part and text bytes; it changes
-    /// whenever a snapshot would. The root's visibility and position are left out, as in <see cref="IsShown"/>, because
-    /// hiding or moving the addon changes them without changing the content.
+    /// A hash of every node's id, visibility, position, whether it has a size, image part, image texture file and text
+    /// bytes; it changes whenever a snapshot would, including when an image's texture finishes loading. The root's
+    /// visibility and position are left out, as in <see cref="IsShown"/>, because hiding or moving the addon changes them
+    /// without changing the content.
     /// </summary>
     public static int Hash(AtkUnitBase* unit)
     {
@@ -115,7 +117,12 @@ internal static unsafe class NodeWalker
 
             hash.Add(node->Width > 0 && node->Height > 0);
             if (node->Type == NodeType.Image)
-                hash.Add(node->GetAsAtkImageNode()->PartId);
+            {
+                var image = node->GetAsAtkImageNode();
+                hash.Add(image->PartId);
+                hash.Add((nint)TextureFile(image));
+            }
+
             if (node->Type == NodeType.Text)
                 hash.AddBytes(node->GetAsAtkTextNode()->NodeText.AsSpan());
             if ((int)node->Type >= ComponentNodeType && node->GetAsAtkComponentNode()->Component != null)
@@ -130,11 +137,22 @@ internal static unsafe class NodeWalker
             return (string.Empty, default);
         var part = &parts->Parts[image->PartId];
         var rect = new PartRect(part->U, part->V, part->Width, part->Height);
-        if (part->UldAsset == null)
-            return (string.Empty, rect);
-        var texture = &part->UldAsset->AtkTexture;
-        if (texture->TextureType != TextureType.Resource || texture->Resource == null || texture->Resource->TexFileResourceHandle == null)
-            return (string.Empty, rect);
-        return (texture->Resource->TexFileResourceHandle->FileName.ToString(), rect);
+        var file = TextureFile(image);
+        return (file == null ? string.Empty : file->FileName.ToString(), rect);
+    }
+
+    /// <summary>The loaded texture file the image node's current part draws from, or null while there is none.</summary>
+    private static TextureResourceHandle* TextureFile(AtkImageNode* image)
+    {
+        var parts = image->PartsList;
+        if (parts == null || image->PartId >= parts->PartCount)
+            return null;
+        var asset = parts->Parts[image->PartId].UldAsset;
+        if (asset == null)
+            return null;
+        var texture = &asset->AtkTexture;
+        if (texture->TextureType != TextureType.Resource || texture->Resource == null)
+            return null;
+        return texture->Resource->TexFileResourceHandle;
     }
 }
