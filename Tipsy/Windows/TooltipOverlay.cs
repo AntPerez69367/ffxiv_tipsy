@@ -15,9 +15,9 @@ namespace Tipsy.Windows;
 /// <summary>The styled tooltip: a fixed-width, input-free window pinned to an anchor, drawn from the reader's snapshot.</summary>
 public sealed class TooltipOverlay : Window
 {
-    private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
+    private const ImGuiWindowFlags LiveFlags = ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav;
     private const long SwapTimeoutMs = 150;
-    private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.AlwaysAutoResize;
+    private const ImGuiWindowFlags PlacingFlags = ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoNav;
 
     private readonly TooltipSelector selector;
     private readonly IKeyState keyState;
@@ -31,13 +31,19 @@ public sealed class TooltipOverlay : Window
     private bool placingStarted;
     private Vector2? placedAt;
     private bool showingSample;
-    private bool fitting;
-    private IReadOnlyList<TooltipBlock> shown = [];
     private IReadOnlyList<TooltipBlock> lastBlocks = [];
     private IReadOnlyList<TooltipBlock> live = [];
     private bool liveFits;
     private long? waitingSince;
-    private float lastContentHeight;
+    private IReadOnlyList<TooltipBlock> visible = [];
+    private bool visibleFits;
+    private float visibleHeight;
+    private IReadOnlyList<TooltipBlock> pending = [];
+    private bool pendingFits;
+    private IReadOnlyList<TooltipBlock> measured = [];
+    private bool measuredFits;
+    private float measuredHeight;
+    private int measuredFrame = -1;
     private WindowPlacement placement;
     private ImRaii.StyleDisposable? styles;
     private ImRaii.ColorDisposable? colors;
@@ -114,35 +120,58 @@ public sealed class TooltipOverlay : Window
         waitingSince = null;
     }
 
+    /// <summary>
+    /// Picks the blocks to show. Blocks whose height is not known yet are measured first: the window keeps showing what it
+    /// showed, or nothing, for one more frame while <see cref="Draw"/> lays the new blocks out invisibly, so the window
+    /// takes its new size and position on the first frame the new blocks are seen. Blocks measured last frame are shown
+    /// even when newer ones have arrived since, so content that changes every frame is never more than a frame behind.
+    /// </summary>
     public override bool DrawConditions()
     {
-        showingSample = false;
-        fitting = false;
-        if (placing)
+        var (wanted, fits) = Wanted();
+        pending = [];
+        if (wanted.Count == 0)
         {
-            shown = lastBlocks.Count > 0 ? lastBlocks : SampleTooltip.Blocks;
+            if (visible.Count > 0)
+            {
+                measured = visible;
+                measuredFits = visibleFits;
+                measuredHeight = visibleHeight;
+                measuredFrame = -1;
+            }
+
+            visible = [];
+            return false;
+        }
+
+        if (ReferenceEquals(wanted, visible))
+            return true;
+        if (ReferenceEquals(wanted, measured))
+        {
+            visible = wanted;
+            visibleFits = fits;
+            visibleHeight = measuredHeight;
             return true;
         }
 
-        if (configuration.ReplaceTooltips && selector.Drawn is not null && !HideKeyHeld())
+        if (measuredFrame == ImGui.GetFrameCount() - 1 && !ReferenceEquals(measured, visible))
         {
-            shown = live;
-            fitting = liveFits;
-            return live.Count > 0;
+            visible = measured;
+            visibleFits = measuredFits;
+            visibleHeight = measuredHeight;
         }
 
-        if (SampleBeside is null)
-            return false;
-        showingSample = true;
-        shown = SampleTooltip.Blocks;
+        pending = wanted;
+        pendingFits = fits;
         return true;
     }
 
     public override void PreDraw()
     {
         var scale = ImGuiHelpers.GlobalScale;
-        var width = fitting ? renderer.FittedWidth(shown, configuration.Width, baseTokens.Padding, scale) : configuration.Width;
-        tokens = (baseTokens with { Width = width }).Scaled(scale);
+        var measuringOnly = visible.Count == 0;
+        tokens = measuringOnly ? TokensFor(pending, pendingFits) : TokensFor(visible, visibleFits);
+        var height = measuringOnly ? 0 : visibleHeight;
         theme = configuration.Theme();
         var viewport = ImGui.GetMainViewport();
         var workMin = viewport.WorkPos;
@@ -152,20 +181,21 @@ public sealed class TooltipOverlay : Window
             var right = new Vector2(settingsMax.X + tokens.SectionGap, settingsMin.Y);
             var left = new Vector2(settingsMin.X - tokens.SectionGap - tokens.Width, settingsMin.Y);
             var beside = right.X + tokens.Width <= workMax.X - tokens.ViewportInset ? right : left;
-            placement = Placement.Place(AnchorPreset.Custom, workMin, workMax, tokens.ViewportInset, tokens.Width, lastContentHeight, beside, Vector2.Zero, Vector2.Zero);
+            placement = Placement.Place(AnchorPreset.Custom, workMin, workMax, tokens.ViewportInset, tokens.Width, height, beside, Vector2.Zero, Vector2.Zero);
         }
         else
         {
             var anchor = placing ? AnchorPreset.Custom : configuration.Anchor;
-            placement = Placement.Place(anchor, workMin, workMax, tokens.ViewportInset, tokens.Width, lastContentHeight, configuration.CustomPosition, ImGui.GetMousePos(), configuration.CursorOffset * scale);
+            placement = Placement.Place(anchor, workMin, workMax, tokens.ViewportInset, tokens.Width, height, configuration.CustomPosition, ImGui.GetMousePos(), configuration.CursorOffset * scale);
         }
 
         if (!placing || placingStarted)
             ImGui.SetNextWindowPos(placement.Position, ImGuiCond.Always, placement.Pivot);
         placingStarted = false;
-        ImGui.SetNextWindowSizeConstraints(new Vector2(tokens.Width, 0), new Vector2(tokens.Width, placement.MaxHeight));
+        ImGui.SetNextWindowSize(new Vector2(tokens.Width, Math.Min(height, placement.MaxHeight)), ImGuiCond.Always);
 
-        styles = ImRaii.PushStyle(ImGuiStyleVar.WindowPadding, new Vector2(tokens.Padding))
+        styles = ImRaii.PushStyle(ImGuiStyleVar.Alpha, 0f, measuringOnly)
+            .Push(ImGuiStyleVar.WindowPadding, new Vector2(tokens.Padding))
             .Push(ImGuiStyleVar.WindowRounding, theme.Rounding * scale)
             .Push(ImGuiStyleVar.WindowBorderSize, 1f)
             .Push(ImGuiStyleVar.ItemSpacing, new Vector2(tokens.InlineGap, 0))
@@ -184,8 +214,14 @@ public sealed class TooltipOverlay : Window
     public override void Draw()
     {
         ImGuiP.BringWindowToDisplayFront(ImGuiP.GetCurrentWindow());
-        renderer.Draw(shown, tokens, theme);
-        lastContentHeight = ImGui.GetCursorPosY() + tokens.Padding;
+        if (visible.Count > 0)
+        {
+            renderer.Draw(visible, tokens, theme);
+            visibleHeight = ImGui.GetCursorPosY() + tokens.Padding;
+        }
+
+        if (pending.Count > 0)
+            Measure();
         if (placing)
             placedAt = ImGui.GetWindowPos();
         if (placing && ImGui.IsMouseReleased(ImGuiMouseButton.Left) && ImGui.GetWindowPos() != configuration.CustomPosition)
@@ -196,6 +232,40 @@ public sealed class TooltipOverlay : Window
 
         if (placement.Overflowing)
             DrawOverflowFade();
+    }
+
+    private (IReadOnlyList<TooltipBlock> Blocks, bool Fits) Wanted()
+    {
+        showingSample = false;
+        if (placing)
+            return (lastBlocks.Count > 0 ? lastBlocks : SampleTooltip.Blocks, false);
+        if (configuration.ReplaceTooltips && selector.Drawn is not null && !HideKeyHeld())
+            return (live, liveFits);
+        if (SampleBeside is null)
+            return ([], false);
+        showingSample = true;
+        return (SampleTooltip.Blocks, false);
+    }
+
+    private LayoutTokens TokensFor(IReadOnlyList<TooltipBlock> blocks, bool fits)
+    {
+        var scale = ImGuiHelpers.GlobalScale;
+        var width = fits ? renderer.FittedWidth(blocks, configuration.Width, baseTokens.Padding, scale) : configuration.Width;
+        return (baseTokens with { Width = width }).Scaled(scale);
+    }
+
+    /// <summary>Lays <see cref="pending"/> out below what is shown, fully transparent, and records its window height.</summary>
+    private void Measure()
+    {
+        var pendingTokens = TokensFor(pending, pendingFits);
+        var top = ImGui.GetCursorPosY();
+        using (ImRaii.PushId("measure"))
+        using (ImRaii.PushStyle(ImGuiStyleVar.Alpha, 0f))
+            renderer.Draw(pending, pendingTokens, theme);
+        measured = pending;
+        measuredFits = pendingFits;
+        measuredHeight = ImGui.GetCursorPosY() - top + (2 * pendingTokens.Padding);
+        measuredFrame = ImGui.GetFrameCount();
     }
 
     private bool HideKeyHeld()
